@@ -98,7 +98,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         ]
         
         # Integration
-        t_span = (t, min(t + 30.0, t_max - t_global))
+        t_span = (t, min(t + 300.0, t_max - t_global))# was soll das? wird hier die maximale simulationszeit begrenzt, ohne das es ersichtlich ist?
         
         sol = integrate.solve_ivp(
             fun=lambda t, y: chemcar_odes(t, y, direction),
