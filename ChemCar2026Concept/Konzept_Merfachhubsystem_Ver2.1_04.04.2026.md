@@ -1,0 +1,117 @@
+# Konzept: Version 2 Merfachhubsystem.
+
+## Zielsetzung
+
+Das Fahrzeug soll eine **präzise, reproduzierbare Distanz** zurücklegen, die ausschließlich durch die Menge der eingesetzten Edukte einer chemischen Reaktion bestimmt wird – ohne elektronische Sensorik oder externe Steuerung.
+
+---
+
+## 1. Chemischer Reaktor (Gasquelle)
+
+Der Reaktor besteht aus zwei Behältern:
+
+- **Oberer Tank (PET-Flasche):** Enthält eine Natronlösung (NaHCO₃ oder Na₂CO₃) unter einem Startdruck von ~3 bar, wobei die Flasche zu 9/10 mit Luft vorgespannt ist. Ein **Nadelventil** lässt die Lösung kontrolliert tröpfeln – langsam genug, damit im Reaktor unten ein konstanter Arbeitsdruck entsteht.
+
+- **Unterer Reaktor:** Enthält Zitronensäure als stationären Reaktanten. Die eintropfende Natronlösung reagiert mit ihr zu CO₂, Wasser und dem entsprechenden Salz:
+
+  > NaHCO₃ + C₆H₈O₇ → CO₂↑ + H₂O + Natriumcitrat
+
+  Der **begrenzende Faktor** ist die eintropfende Natronlösung. Sobald sie vollständig verbraucht ist, endet die Gasproduktion – das **Gesamtgasvolumen ist damit direkt proportional zur eingesetzten Eduktmenge**, was die präzise Steuerung der Fahrstrecke ermöglicht.
+
+- Ein **Konstant-Druckminderer** reduziert den Reaktordruck von ~4 bar auf konstante **2 bar** am Eingang des Pneumatiksystems, unabhängig vom aktuellen Reaktorinnendruck.
+
+---
+
+## 2. Pneumatischer Antrieb (Festo-Kolben)
+
+Ein **doppeltwirkender Pneumatikzylinder** (Festo, Hubweg: 20 cm) wandelt den Gasfluss in eine gleichmäßige Linearbewegung um.
+
+- An **beiden Endpositionen** des Kolbens befindet sich je eine **Feder**, die so vorgespannt ist, dass der Kolben mindestens **1,9 bar** aufbringen muss, um sie vollständig zusammenzudrücken. Diese Federn dienen gleichzeitig als **mechanischer Endanschlag mit Druckschwelle**.
+- Sobald der Kolben am Ende seines Hubs die Feder zusammendrückt, betätigt er einen **Taster (Button 1 / Button 2)**, der das Richtungsumschaltsignal auslöst.
+- Ein **Drosselventil (Exhaust)** am Zylinderausgang begrenzt den Abluftfluss und steuert damit die **Kolbengeschwindigkeit**, was eine gleichmäßige Bewegung sicherstellt.
+
+---
+
+## 3. Elektronische Steuerung (Richtungsumschaltung)
+
+Die beiden Endlagentaster sind an ein **T-Flipflop** angeschlossen, das von einer **6V-Batterie** versorgt wird. Das Flipflop schaltet bei jedem Tasterdruck seinen Ausgang um (Low ↔ High) und steuert darüber einen **Transistor**, der wiederum ein **elektrisches 3/2-Wege-Ventil (Y-Ventil)** ansteuert.
+
+- **Zustand A (Low):** Druckluft strömt in die linke Kolbenkammer → Kolben fährt nach rechts.
+- **Zustand B (High):** Druckluft strömt in die rechte Kolbenkammer → Kolben fährt nach links.
+
+Der Kolben pendelt so vollautomatisch hin und her, solange Gas produziert wird.
+
+---
+
+## 4. Kraftübertragung (Riemen & Freilauf)
+
+Der bewegliche Teil des Kolbens ist über einen **Riemen** mit beiden Achsen verbunden. Jede Achse ist mit einem **Freilauf (Einwegkupplung)** ausgestattet, sodass jede Achse nur in **einer Drehrichtung** Kraft überträgt:
+
+- **Vorwärtshub (Kolben nach rechts):** Die **Vorderachse** koppelt ein und treibt das Fahrzeug vorwärts. Die Hinterachse läuft frei.
+- **Rückwärtshub (Kolben nach links):** Die **Hinterachse** koppelt ein (Riemen ist gegenläufig verbunden) und treibt das Fahrzeug ebenfalls vorwärts. Die Vorderachse läuft frei.
+
+➜ Das Fahrzeug bewegt sich bei **jedem Kolbenhub** (hin wie her) um jeweils **20 cm** vorwärts. Die zurückgelegte Gesamtstrecke ist damit:
+
+> **Gesamtstrecke = Anzahl der Hübe × 20 cm**
+
+Da die Anzahl der Hübe direkt von der produzierten CO₂-Menge abhängt, und diese wiederum von der Eduktmenge, ergibt sich eine **lineare, chemisch gesteuerte Distanzkontrolle**.
+
+---
+
+## Zusammenfassung der Präzisionskette
+
+```
+Eduktmenge → CO₂-Volumen → Anzahl Kolbenhübe → Fahrstrecke
+```
+
+Jede Größe in dieser Kette ist direkt proportional zur vorherigen – das Konzept ist elegant und theoretisch sehr präzise reproduzierbar.
+```
+==============================================================================
+                SCHEMATISCHE DARSTELLUNG: MULTI-HUB-SYSTEM V2
+==============================================================================
+
+   [ 1. CHEMISCHE GASQUELLE ]             [ 3. ELEKTRONIK & VENTIL ]
+  +---------------------------+          +------------------------------+
+  |      PET-FLASCHE          |          |       6V BATTERIE            |
+  | (Natronlösung, ~3 bar)    |          |              |               |
+  +-------------|-------------+          |       [ T-FLIPFLOP ]         |
+                |                        |              |               |
+        { NADELVENTIL }                  |       [ TRANSISTOR ]         |
+                |                        +--------------|---------------+
+                V                                       |
+  +---------------------------+                [ 3/2-WEGE-VENTIL (Y) ]
+  |    UNTERER REAKTOR        |                           |
+  | (Zitronensäure -> CO2 Up) |                           | (Druckluft)
+  +-------------|-------------+                           |
+                |                                         V
+      [ DRUCKREGULATOR ] <----------------------- [ 2. PNEUMATIK-UNIT ]
+       (Reduzierung auf 2b)                      +----------------------+
+                                                 |   FESTO KOLBEN       |
+                                                 |  (Hubweg: 20 cm)     |
+                                                 |                      |
+                                                 | [BUTTON 1] + [SPRING]|
+                                                 |          <->         |
+                                                 | [BUTTON 2] + [SPRING]|
+                                                 |          |           |
+                                                 | [DROSSELVENTIL/EXH] |
+                                                 +----------|-----------+
+                                                            | (Kraftfluss)
+                                                            V
+==============================================================================
+                   [ 4. KRAFTÜBERTRAGUNG / ANTRIEB ]
+==============================================================================
+
+          ACHSE A (VORNE)                        ACHSE B (HINTEN)
+      +-----------------------+               +-----------------------+
+      |  [ FREILAUF-KUPPLUNG] | <---(RIEMEN)--|  [ FREILAUF-KUPPLUNG] |
+      +-----------|-----------+               +-----------|-----------+
+                  |                                       |
+              [ RAD A ]                               [ RAD B ]
+
+------------------------------------------------------------------------------
+LOGIK-FLUSS:
+EDUKT $\rightarrow$ CO2 $\rightarrow$ DRUCK $\rightarrow$ KOLBEN-HUB $\rightarrow$ FREILAUF-KOPPLUNG $\rightarrow$ VORWÄRTS-DRUCK
+------------------------------------------------------------------------------
+```
+
+
