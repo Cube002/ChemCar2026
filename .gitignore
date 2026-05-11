@@ -1,0 +1,16 @@
+/*
+
+!ChemCar2026Concept/
+!ChemCar2026Concept/**
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated data files
+*.csv
+*.npz
+
+# Generated plots
+chemcar_plots.png
