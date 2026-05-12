@@ -73,6 +73,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     # Speicher
     t_all = []
     y_all = []
+    direction_at_t = []
     
     print("=" * 65)
     print("  CHEMCAR MEHRFACHHUBSYSTEM — SIMULATION")
@@ -98,7 +99,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         ]
         
         # Integration
-        t_span = (t, min(t + 300.0, t_max - t_global))# was soll das? wird hier die maximale simulationszeit begrenzt, ohne das es ersichtlich ist?
+        t_span = (t, min(t + 30000.0, t_max - t_global))# was soll das? wird hier die maximale simulationszeit begrenzt, ohne das es ersichtlich ist?
         
         sol = integrate.solve_ivp(
             fun=lambda t, y: chemcar_odes(t, y, direction),
@@ -119,6 +120,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             
             t_all.extend(sol.t.tolist())
             y_all.append(sol.y.T)
+            direction_at_t.extend([direction] * len(sol.t))
         
         # Event prüfen
         event_triggered = False
@@ -191,8 +193,10 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     # --- Ergebnis zusammenfuegen ---
     if y_all:
         y_all_concat = np.concatenate(y_all, axis=0)
+        t_all = np.array(t_all)
     else:
         y_all_concat = np.array([y])
+        t_all = np.array([t_global])
     
     # --- Zusammenfassung ---
     final = y_all_concat[-1]
@@ -209,11 +213,6 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     print(f"  Avg. Geschwindigkeit:  {final[3] / max(t_global, 0.001):.3f} m/s")
     
     # Theoretischer Vergleich
-    # Theoretische Mol Citric: initial n_citric
-    # Theoretische CO2: n_citric * 3
-    # Theoretisches Volumen bei 2 bar: n_CO2 * R * T / P
-    # Theoretische Distanz: V_gas / (A_piston * P/P_atm) ... vereinfacht:
-    # Aus den Notizen: ~0.157 L CO2 per meter Kolbenweg
     theoretical_co2_mol = y_all_concat[0, 0] * STOICH_CO2_PER_CITRIC
     theoretical_volume_L = theoretical_co2_mol * GAS_CONSTANT_BAR_L * TEMPERATURE_K / REGULATOR_OUTPUT_BAR
     theoretical_distance = theoretical_co2_mol * 0.157
@@ -227,7 +226,14 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # Plots
     if plot and len(t_all) > 1:
-        plot_results(np.array(t_all), y_all_concat)
+        V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
+        P_reactor = (y_all_concat[:, 5] + y_all_concat[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
+        
+        P_exhaust = np.zeros(len(t_all))
+        for i in range(len(t_all)):
+            d = direction_at_t[i] if i < len(direction_at_t) else direction
+            P_exhaust[i] = y_all_concat[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y_all_concat[i, 1], d), 0.001) * 0.001
+        plot_results(t_all, y_all_concat, P_exhaust)
     
     return np.array(t_all), y_all_concat
 
@@ -250,11 +256,12 @@ def plot_results(t, y):
         [5] n_co2_gas_mol
         [6] n_co2_dissolved_mol
         [7] n_air_mol
+        [8] n_exhaust_mol
     """
     V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
     P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
     
-    fig, axes = plt.subplots(4, 1, figsize=(14, 16), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(14, 20), sharex=True)
     fig.suptitle('ChemCar Mehrfachhubsystem — Simulationsergebnis', fontsize=14, fontweight='bold')
     
     # Plot 1: Zitronensäure + CO2
@@ -278,26 +285,36 @@ def plot_results(t, y):
     ax2.legend(loc='upper right', fontsize=9)
     ax2.grid(True, alpha=0.3)
     
-    # Plot 3: Kolbenposition + Geschwindigkeit
+    # Plot 3: Auslass-Kammer Druck
     ax3 = axes[2]
-    ax3.plot(t, y[:, 1] * 100, 'b-', linewidth=1.5, label='Kolbenposition')
-    ax3.plot(t, y[:, 2] * 100, 'r-', linewidth=1, alpha=0.7, label='Kolbengeschw.')
-    ax3.axhline(y=ROD_LENGTH_M * 100, color='gray', linestyle=':', linewidth=1)
-    ax3.axhline(y=0, color='gray', linestyle=':', linewidth=1)
-    ax3.set_ylabel('Position [cm] / Geschw. [cm/s]')
-    ax3.set_title('Pneumatik-Zylinder')
+    P_exhaust = np.array([get_exhaust_pressure(y[i, 8], y[i, 1], 1 if i < len(t_all) // 2 else -1) for i in range(len(t))])
+    ax3.plot(t, P_exhaust, 'c-', linewidth=1.5, label='P_Auslass')
+    ax3.axhline(y=1.0, color='gray', linestyle=':', linewidth=1, label='Ambient (1 bar)')
+    ax3.set_ylabel('Druck [bar]')
+    ax3.set_title('Auslass-Kammer Druck')
     ax3.legend(loc='upper right', fontsize=9)
     ax3.grid(True, alpha=0.3)
     
-    # Plot 4: Fahrzeugdistanz + Geschwindigkeit
+    # Plot 4: Kolbenposition + Geschwindigkeit
     ax4 = axes[3]
-    ax4.plot(t, y[:, 3], 'g-', linewidth=2, label='Fahrzeugdistanz')
-    ax4.plot(t, y[:, 4] * 100, 'orange', linewidth=1, alpha=0.7, label='Fahrzeuggeschw. [cm/s]')
-    ax4.set_xlabel('Zeit [s]')
-    ax4.set_ylabel('Distanz [m] / Geschw. [cm/s]')
-    ax4.set_title('Fahrzeugbewegung')
+    ax4.plot(t, y[:, 1] * 100, 'b-', linewidth=1.5, label='Kolbenposition')
+    ax4.plot(t, y[:, 2] * 100, 'r-', linewidth=1, alpha=0.7, label='Kolbengeschw.')
+    ax4.axhline(y=ROD_LENGTH_M * 100, color='gray', linestyle=':', linewidth=1)
+    ax4.axhline(y=0, color='gray', linestyle=':', linewidth=1)
+    ax4.set_ylabel('Position [cm] / Geschw. [cm/s]')
+    ax4.set_title('Pneumatik-Zylinder')
     ax4.legend(loc='upper right', fontsize=9)
     ax4.grid(True, alpha=0.3)
+    
+    # Plot 5: Fahrzeugdistanz + Geschwindigkeit
+    ax5 = axes[4]
+    ax5.plot(t, y[:, 3], 'g-', linewidth=2, label='Fahrzeugdistanz')
+    ax5.plot(t, y[:, 4] * 100, 'orange', linewidth=1, alpha=0.7, label='Fahrzeuggeschw. [cm/s]')
+    ax5.set_xlabel('Zeit [s]')
+    ax5.set_ylabel('Distanz [m] / Geschw. [cm/s]')
+    ax5.set_title('Fahrzeugbewegung')
+    ax5.legend(loc='upper right', fontsize=9)
+    ax5.grid(True, alpha=0.3)
     
     plt.tight_layout()
     

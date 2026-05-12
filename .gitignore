@@ -3,6 +3,8 @@
 !.gitignore
 !ChemCar2026Concept/
 !ChemCar2026Concept/**
+!notes/
+!notes/**
 
 # Python cache
 __pycache__/

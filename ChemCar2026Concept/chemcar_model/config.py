@@ -84,6 +84,11 @@ EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 # Kolben-Masse
 PISTON_MASS_KG = 0.5              # Masse des beweglichen Teils
 
+# Effektive beschleunigte Masse (Kolben + äquivalentes Fahrzeug über Riemenübersetzung)
+# Da der Kolben über Riemen und Freiläufe das Fahrzeug beschleunigt, muss die Fahrzeugmasse
+# als äquivalente Masse am Kolben berücksichtigt werden.
+PISTON_VEHICLE_MASS_KG = PISTON_MASS_KG + VEHICLE_MASS_KG  # Gesamtmasse für Beschleunigung
+
 # ============================================================================
 # KRAFTÜBERTRAGUNG & FAHRZEUG
 # ============================================================================
