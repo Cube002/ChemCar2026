@@ -43,7 +43,7 @@ import matplotlib.pyplot as plt
 
 sys.path.insert(0, os.path.dirname(__file__))
 from config import *
-from odesystem import chemcar_odes, get_initial_state, piston_at_end_forward, piston_at_end_reverse, citric_exhausted
+from odesystem import chemcar_odes, get_initial_state, piston_at_end_forward, piston_at_end_reverse, citric_exhausted, get_exhaust_volume_L
 
 
 # ============================================================================
@@ -78,7 +78,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     print("=" * 65)
     print("  CHEMCAR MEHRFACHHUBSYSTEM — SIMULATION")
     print("=" * 65)
-    print(f"  Start-Zitronensaure:    {y[0] * CITRIC_ACID_MOLAR_MASS / 1000:.4f} g")
+    print(f"  Start-Zitronensaure:    {y[0] * CITRIC_ACID_MOLAR_MASS:.4f} g")
     print(f"  Start-Kolbenposition:   {y[1]*100:.1f} cm ({y[1]/ROD_LENGTH_M*100:.0f}% des Hubs)")
     print(f"  Hubweg pro Stroke:      {ROD_LENGTH_M*100:.0f} cm")
     print(f"  Max Simulationszeit:    {t_max:.0f} s")
@@ -91,20 +91,21 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # --- Hauptschleife: Stroke fuer Stroke ---
     while stroke_count < max_strokes and t_global < t_max:
-        # Events fuer diesen Stroke
-        events = [
-            piston_at_end_forward,
-            piston_at_end_reverse,
-            citric_exhausted,
-        ]
+        # Events fuer diesen Stroke (nur das richtungs-passende aktiv)
+        if direction > 0:
+            events = [piston_at_end_forward, citric_exhausted]
+            event_forward = True
+        else:
+            events = [piston_at_end_reverse, citric_exhausted]
+            event_forward = False
         
         # Integration
-        t_span = (t, min(t + 30000.0, t_max - t_global))# was soll das? wird hier die maximale simulationszeit begrenzt, ohne das es ersichtlich ist?
+        t_span = (t, min(t + 30000.0, t_max - t_global))
         
         sol = integrate.solve_ivp(
             fun=lambda t, y: chemcar_odes(t, y, direction),
             t_span=t_span,
-            y0=list(y),  # Kopie als list
+            y0=list(y),
             method='BDF',
             events=events,
             rtol=1e-6,
@@ -114,8 +115,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         
         # Ergebnisse speichern
         if sol.t.size > 1:
-            # Reaktor-Druck berechnen (inkl. Luft-Anteil)
-            V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
+            V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
             P = (sol.y[5, :] + sol.y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
             
             t_all.extend(sol.t.tolist())
@@ -123,47 +123,49 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             direction_at_t.extend([direction] * len(sol.t))
         
         # Event prüfen
-        event_triggered = False
-        
-        if sol.t_events[0].size > 0:
-            # rechtes Ende erreicht
-            event_triggered = True
-            y = sol.y[:, -1]  # Zustand am Event
+        if sol.t_events[0].size > 0 and event_forward:
+            # rechtes Ende erreicht → toggle zu -1 (links)
+            y = sol.y[:, -1]
             t = sol.t[-1]
             t_global = t
             direction = -1
+            V_new_exhaust_L = y[1] * PISTON_AREA_M2 * 1000.0
+            y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
             stroke_count += 1
-            print(f"  Stroke {stroke_count}: Kolben -> RECHTS (x = {ROD_LENGTH_M*100:.0f} cm)")
+            print(f"  Stroke {stroke_count}: Kolben -> LINKS (x = {y[1]*100:.1f} cm)")
             
-        elif sol.t_events[1].size > 0:
-            # linkes Ende erreicht
-            event_triggered = True
+        elif sol.t_events[0].size > 0 and not event_forward:
+            # linkes Ende erreicht → toggle zu +1 (rechts)
             y = sol.y[:, -1]
             t = sol.t[-1]
             t_global = t
             direction = +1
+            V_new_exhaust_L = (ROD_LENGTH_M - y[1]) * PISTON_AREA_M2 * 1000.0
+            y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
             stroke_count += 1
-            print(f"  Stroke {stroke_count}: Kolben -> LINKS (x = 0.0 cm)")
+            print(f"  Stroke {stroke_count}: Kolben -> RECHTS (x = {y[1]*100:.1f} cm)")
             
-        elif sol.t_events[2].size > 0:
-            # Zitronensäure aufgebraucht
-            event_triggered = True
+        elif sol.t_events[1].size > 0:
             y = sol.y[:, -1]
             t = sol.t[-1]
             t_global = t
             stroke_count += 1
-            citric_remaining = y[0] * CITRIC_ACID_MOLAR_MASS / 1000.0
+            citric_remaining = y[0] * CITRIC_ACID_MOLAR_MASS
             print(f"\n  [ERFOG] Zitronensäure aufgebraucht nach {stroke_count} Hueben!")
             print(f"  Rest: {citric_remaining:.4f} g")
             
         else:
-            # Kein Event — Integration lief bis t_span Ende
             if sol.status == 0:
                 y = sol.y[:, -1]
                 t = sol.t[-1]
                 t_global = t
-                # Toggle direction für naechsten Stroke
                 direction *= -1
+                # Neue Auslass-Kammer = alte Versorgung (2 bar)
+                if direction > 0:
+                    V_new_exhaust_L = (ROD_LENGTH_M - y[1]) * PISTON_AREA_M2 * 1000.0
+                else:
+                    V_new_exhaust_L = y[1] * PISTON_AREA_M2 * 1000.0
+                y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
                 stroke_count += 1
             else:
                 print(f"\n  [WARN] Integration fehlgeschlagen (status={sol.status})")
@@ -182,10 +184,10 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
                 y[4] = 0.0
         
         # Safety: Breche ab wenn Druck zu niedrig oder Pistenv steht
-        V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
+        V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
         P_current = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace if V_headspace > 0 else 0
         
-        if P_current < SPRING_PRELOAD_BAR and y[0] > 1e-10:
+        if P_current < 1.1 and y[0] > 1e-10:
             print(f"\n  [WARN] Reaktor-Druck ({P_current:.2f} bar) unter Feder-Schwelle")
             print(f"  Kolben bewegt sich nicht mehr. {stroke_count} Hübe abgeschlossen.")
             break
@@ -200,14 +202,14 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # --- Zusammenfassung ---
     final = y_all_concat[-1]
-    P_final = (final[5] + final[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO))
+    P_final = (final[5] + final[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
     
     print(f"\n  Simulation beendet nach {len(t_all):,} Zeitschritten.")
     print(f"\n  === ERGEBNISZUSAMMENFASSUNG ===")
     print(f"  Gesamtdistanz:        {final[3]:.2f} m")
     print(f"  Simulationszeit:       {t_global:.1f} s")
     print(f"  End-Druck:             {P_final:.2f} bar")
-    print(f"  Rest-Zitronensäure:    {final[0] * CITRIC_ACID_MOLAR_MASS / 1000:.4f} g")
+    print(f"  Rest-Zitronensäure:    {final[0] * CITRIC_ACID_MOLAR_MASS:.4f} g")
     print(f"  Anzahl Hübe:           {stroke_count}")
     print(f"  Avg. Zeit pro Hub:     {t_global / max(stroke_count, 1):.2f} s")
     print(f"  Avg. Geschwindigkeit:  {final[3] / max(t_global, 0.001):.3f} m/s")
@@ -226,13 +228,13 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # Plots
     if plot and len(t_all) > 1:
-        V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
+        V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
         P_reactor = (y_all_concat[:, 5] + y_all_concat[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
         
         P_exhaust = np.zeros(len(t_all))
         for i in range(len(t_all)):
             d = direction_at_t[i] if i < len(direction_at_t) else direction
-            P_exhaust[i] = y_all_concat[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y_all_concat[i, 1], d), 0.001) * 0.001
+            P_exhaust[i] = y_all_concat[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y_all_concat[i, 1], d), 0.001)
         plot_results(t_all, y_all_concat, P_exhaust)
     
     return np.array(t_all), y_all_concat
@@ -243,11 +245,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
 # ============================================================================
 
 
-def plot_results(t, y):
+def plot_results(t, y, P_exhaust):
     """
     Erzeugt 4 Plots und speichert als PNG.
     
-    y columns:
+    y columns (9 Zustandsvariablen):
         [0] n_citric_mol
         [1] x_piston_m
         [2] v_piston_m_s
@@ -258,7 +260,7 @@ def plot_results(t, y):
         [7] n_air_mol
         [8] n_exhaust_mol
     """
-    V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
+    V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
     P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
     
     fig, axes = plt.subplots(5, 1, figsize=(14, 20), sharex=True)
@@ -287,7 +289,6 @@ def plot_results(t, y):
     
     # Plot 3: Auslass-Kammer Druck
     ax3 = axes[2]
-    P_exhaust = np.array([get_exhaust_pressure(y[i, 8], y[i, 1], 1 if i < len(t_all) // 2 else -1) for i in range(len(t))])
     ax3.plot(t, P_exhaust, 'c-', linewidth=1.5, label='P_Auslass')
     ax3.axhline(y=1.0, color='gray', linestyle=':', linewidth=1, label='Ambient (1 bar)')
     ax3.set_ylabel('Druck [bar]')
@@ -331,8 +332,13 @@ def plot_results(t, y):
 
 def save_results(t, y, filename='chemcar_results'):
     """Speichert Ergebnisse als .npz und .csv."""
-    V_headspace = REACTOR_VOLUME_L * (1 - REACTOR_HEADSPACE_RATIO)
+    V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
     P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
+    
+    P_exhaust = np.zeros(len(t))
+    for i in range(len(t)):
+        d = 1 if y[i, 2] >= 0 else -1
+        P_exhaust[i] = y[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y[i, 1], d), 0.001)
     
     data = {
         'time_s': t,
@@ -344,7 +350,9 @@ def save_results(t, y, filename='chemcar_results'):
         'n_co2_gas_mol': y[:, 5],
         'n_co2_dissolved_mol': y[:, 6],
         'P_reactor_bar': P_reactor,
+        'P_exhaust_bar': P_exhaust,
         'n_air_mol': y[:, 7],
+        'n_exhaust_mol': y[:, 8],
     }
     npz_path = os.path.join(os.path.dirname(__file__), filename + '.npz')
     np.savez(npz_path, **data)
@@ -352,9 +360,9 @@ def save_results(t, y, filename='chemcar_results'):
     
     csv_path = os.path.join(os.path.dirname(__file__), filename + '.csv')
     with open(csv_path, 'w') as f:
-        f.write('time_s,n_citric_g,x_piston_cm,v_piston_cm_s,s_vehicle_m,v_vehicle_cm_s,n_co2_gas_mol,n_co2_dissolved_mol,P_reactor_bar,n_air_mol\n')
+        f.write('time_s,n_citric_g,x_piston_cm,v_piston_cm_s,s_vehicle_m,v_vehicle_cm_s,n_co2_gas_mol,n_co2_dissolved_mol,P_reactor_bar,P_exhaust_bar,n_air_mol,n_exhaust_mol\n')
         for i in range(len(t)):
-            f.write(f'{t[i]:.6f},{y[i,0]*CITRIC_ACID_MOLAR_MASS:.6f},{y[i,1]*100:.6f},{y[i,2]*100:.6f},{y[i,3]:.6f},{y[i,4]*100:.6f},{y[i,5]:.8f},{y[i,6]:.8f},{P_reactor[i]:.4f},{y[i,7]:.8f}\n')
+            f.write(f'{t[i]:.6f},{y[i,0]*CITRIC_ACID_MOLAR_MASS:.6f},{y[i,1]*100:.6f},{y[i,2]*100:.6f},{y[i,3]:.6f},{y[i,4]*100:.6f},{y[i,5]:.8f},{y[i,6]:.8f},{P_reactor[i]:.4f},{P_exhaust[i]:.4f},{y[i,7]:.8f},{y[i,8]:.8f}\n')
     print(f"Ergebnisse (.csv): {csv_path}")
 
 
