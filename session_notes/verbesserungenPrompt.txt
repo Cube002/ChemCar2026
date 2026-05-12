@@ -1,0 +1,26 @@
+Hi, arbeite in:c:\Users\Personal\Documents\Studium\ChemCar\2026\ChemCar2026Concept\chemcar_model
+
+benutze c:\Users\Personal\Documents\Studium\ChemCar\2026\chemcar_env
+
+Verwende notizen aus c:\Users\Personal\Documents\Studium\ChemCar\2026\ChemCar2026Concept
+
+
+Lese c:\Users\Personal\Documents\Studium\ChemCar\2026\ChemCar2026Concept\Konzept_Merfachhubsystem_Ver3.0_09.05.2026.md
+
+In einer vorherigen session wurde ein differentialgleichungsmodell in python entwickelt das das chemcar simulieren soll, es ist aber compliziert, alle gleichungen zum laufen und das auto zum stetigen fahren zu bekommen, da die gleichungen alle start bidirektional gekoppelt sind.
+Probiere die pyhton simulation laufen zu lassen und finde herraus, wie sich die physik in der simulation verhält indem du aufmerksam das skript ließt. Mache auch einen ordner in dem du session übergreifende notizen speichern möchtest. 
+Die aktuelle simulation hat einen problem mit der kolben kinetic, 
+eigentlich ist das hier die schleife:
+RÜCKKOPPLUNGSSCHLEIFE:
+  n_citric → Tropffrate → CO2-Produktion → Reaktor-Druck → Kolbenkraft
+    ↑                                                                    ↓
+    └── Druckdifferenz ← Kolbenposition ← Fahrzeuglast ← Kolbenkraft ←──┘
+""" 
+
+leider werden hier ein par vereinfachungen gemacht, die nicht umbedingt gut sind. eigentlich sollte erst eine kraftbilanz am kolben gemacht werden, da sollen alle möglichen sachen einfließen.
+
+Der kolben hat 2 kammern auf beiden seiten der kolben wirkfläche einen. beide kammern wirken gegeneinander. eine kammer ist immer mit dem auslass verbunden, die andere mit der gasquelle(vom reaktor). der gas druck auf der reaktor seite ist durch das konstant druck ventiel und seine flussrate bestimmt (das klappt schon) der druck auf der auslass seite des kolbens ist duch das volumen die noch vorhandene in der seite des kolbens befindliche gasmenge bestimmt. Das gas entweicht nur langsam aus dieser kammer, da es ein drosselventiel am auslass gibt. Dazu fließen in die kraft bilanz auch noch die beschleunigte masse des kolbens, des fahrzeugs und die reibung ein.
+
+Bitte fasse diese wichtige klarstellung in den notes zusammen und plane die änderung des codes dementsprechend.
+
+die netto kraft sorgt dann für eine beschleunigung des kolbens und des fahrzeuges, die positionsänderung dann für eine volumenänderung und wieder für eine neue kraft. das muss alles gekoppelt berechnet werden, momentan ist es nicht ganz klar.
