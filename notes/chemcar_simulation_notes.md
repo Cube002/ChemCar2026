@@ -263,10 +263,90 @@ n_citric → Tropffrate → CO2-Produktion → Reaktor-Druck → Kolbenkraft
 
 ---
 
+## Session 04: Kinetische Kopplung Piston-Belt & Parameter-Tuning (13.05.2026)
+
+### Bugfix: Riemen-Kraft Vorzeichen am Kolben
+
+**Problem:** Die Riemenkraft `F_belt` wurde immer negativ auf den Kolben gerechnet
+(`F_net = ... - F_belt`), unabhängig von der Bewegungsrichtung. Bei `direction=-1`
+(Linkshub) half die Riemenkraft dem Kolben statt zu bremsen → Simulation instabil
+(586k steps / 300s).
+
+**Fix:**
+```python
+# Vorher (falsch): Riemen bremst nur bei Rechtshub
+F_net = F_pressure + F_spring + F_friction - F_belt
+
+# Nachher (korrekt): Riemen wirkt immer entgegen der tatsächlichen Bewegung
+belt_sign = np.sign(v_piston) if abs(v_piston) > 1e-8 else direction
+F_net = F_pressure + F_spring + F_friction - belt_sign * F_belt
+```
+
+**Effekt:** Simulation von 587k → 42k Schritte (14× schneller), selbe Physik.
+
+### Kinetische Kopplung (beide Richtungen → Vorwärts)
+
+Der Freilauf-Mechanismus wandelt beide Kolbenrichtungen in Vorwärtsfahrt um:
+- `target_v = abs(v_piston) * BELT_TO_WHEEL_RATIO` → immer positive Zielgeschwindigkeit
+- `F_belt = (target_v - v_vehicle) * BELT_STIFFNESS * VEHICLE_MASS_KG`
+- Antrieb nur wenn `v_vehicle < target_v` (Freilauf sonst)
+- Fahrzeug rollt bei stehendem Kolben weiter (Freewheeling im `else`-Zweig)
+
+### Parameter-Tuning
+
+| Parameter | Alt | Neu | Grund |
+|-----------|-----|-----|-------|
+| `EXHAUST_FLOW_COEFF` | 2.5e-5 | 1.5e-4 | Zu niedrig → Piston auf 2.9 cm/s limitiert |
+| `VALVE_ORIFICE_AREA_MM2` | 0.2 | 0.6 | Tropfrate zu gering → P_reactor fällt |
+| `TANK_INITIAL_PRESSURE_BAR` | 3.0 | 4.0 | Tankdruck = Reaktor → Tropfstopp |
+| `FREEWHEEL_BRAKE_FORCE_N` | 30.0 | 10.0 | Zu aggressive Bremse |
+| `VEHICLE_MECHANICAL_DAMPING` | 3000 | 500 | Zu hohe Dämpfung |
+| `BELT_STIFFNESS` | inline 500 | config 500 | Als Parameter ausgelagert |
+
+### Aktuelle Performance (300s Simulation)
+
+| Metrik | Vor Tuning | Nach Tuning |
+|--------|-----------|-------------|
+| Hübe | 35 + 1 | 47 + 1 |
+| Gesamtdistanz | 10.20 m | 13.93 m |
+| P_reactor (Ende) | 1.37 bar | 1.47 bar |
+| P_reactor (nach 60s) | 1.77 bar | 2.56 bar |
+| Ø Hubzeit | 8.33 s | 6.25 s |
+| Ø Geschwindigkeit | 3.4 cm/s | 4.6 cm/s |
+| Kolben-Endspeed | 1.5 cm/s | 2.2 cm/s |
+| Zeitschritte | 41.944 | 225.288 |
+
+Die ersten ~23 Hübe laufen bei P_reactor > 2 bar und 5.41 cm/s konstanter Endgeschwindigkeit.
+Nach Unterschreiten von REGULATOR_OUTPUT_BAR sinkt die Antriebskraft kontinuierlich.
+
+### Ursache P_reactor-Abfall
+
+1. CO₂ löst sich im Reaktorwasser (Henry) → verzögerter Druckaufbau initial
+2. Tankdruck sinkt mit Flüssigkeitsstand → Tropfrate sinkt
+3. Bei P_tank ≈ P_reactor stoppt Tropf komplett → keine CO₂-Produktion mehr
+4. Regulator verbraucht Rest-CO₂ aus Gasphase → P_reactor fällt weiter
+
+**Mögliche Lösungsansätze:**
+- Tank mit CO₂-Druck beaufschlagen (externer Druck)
+- CITRIC_TANK_INITIAL_FILL reduzieren → mehr Gasvolumen im Tank
+- Niedrigeren REGULATOR_OUTPUT_BAR wählen (z.B. 1.8 bar)
+
+### Bekannte Probleme
+
+1. **Steifigkeit bei P_reactor < 1.5 bar:** Solver braucht 80k Schritte pro Hub
+   (Geschwindigkeitsnulldurchgang + geringe Antriebskraft)
+2. **P_reactor fällt nach ~25 Hüben unter 2 bar:** Tankdruck sinkt mit
+   Flüssigkeitsstand, Tropfrate → 0
+3. **Fahrzeuggeschwindigkeit:** 5.41 cm/s ist realistisch, aber Freilauf-Bremse
+   (10 N + 500·v) begrenzt Ausrollen zwischen Hüben
+
+---
+
 ## Nächste Schritte
 
-1. [ ] Simulation testen: `python simulate.py --plot`
-2. [ ] Ergebnisse analysieren
-3. [ ] Bei Problemen: odesystem.py debuggen
-4. [ ] Parameter-Tuning
-5. [ ] Bei Erfolg: Dokumentation aktualisieren
+1. [x] Simulation testen: `python simulate.py --plot` → funktioniert
+2. [x] Ergebnisse analysieren → 47 Hübe, 13.93m, akzeptabel
+3. [x] Kinetische Kopplung Piston-Belt korrigiert
+4. [x] Parameter-Tuning (Drip, Exhaust, Dämpfung, Tankdruck)
+5. [ ] P_reactor-Stabilität verbessern (Höherer Tankdruck oder CO₂-Vorlage)
+6. [ ] Steifigkeit bei niedrigem P_reactor reduzieren

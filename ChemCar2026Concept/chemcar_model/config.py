@@ -13,7 +13,7 @@ ATMOSPHERIC_PRESSURE = 1.0
 CITRIC_TANK_VOLUME_L = 2.0        # Gesamtvolumen des Edelstahltanks in Litern
 CITRIC_TANK_INITIAL_FILL = 0.9    # Füllfaktor (0-1), 90% gefüllt
 CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # ~1.8 kg Lösung
-TANK_INITIAL_PRESSURE_BAR = 3.0   # Startdruck im Zitronensäure-Tank (bar)
+TANK_INITIAL_PRESSURE_BAR = 4.0   # Startdruck im Zitronensäure-Tank (bar)
 
 # Zitronensäure-Konzentration in der Lösung (g/L)
 # Aus Notizen: 27g Citronensäure für ~10L CO₂ bei 2 bar
@@ -43,7 +43,7 @@ CO2_MOLAR_MASS = 44.01            # g/mol
 # Die Tropffrate wird durch das Ventil und den Druckgradienten bestimmt
 # C_d * A * sqrt(2 * rho * delta_P)
 VALVE_DISCHARGE_COEFF = 0.6       # Durchflussbeiwert für Nadelventil
-VALVE_ORIFICE_AREA_MM2 = 0.2      # Öffnungsfläche in mm² (Nadelventil, stark gedrosselt)
+VALVE_ORIFICE_AREA_MM2 = 0.6      # Öffnungsfläche in mm² (Nadelventil)
 LIQUID_DENSITY = 1000.0           # kg/m³ (wässrige Lösung)
 
 # ============================================================================
@@ -85,7 +85,7 @@ SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR - ATMOSPHERIC_PRESSURE) * 1e5 * P
 # - Exhaust-Kammer baut Gegendruck auf → natürliche Geschwindigkeitsbegrenzung
 # - Feder+Exhaust bremsen den Kolben sanft an den Hubenden
 # - Keine harten if/else Diskontinuitäten — alles physikalisch über Kraftbilanz
-EXHAUST_FLOW_COEFF = 2.5e-5     # m³/s / sqrt(bar) # herunter gesetzt von 3e-3 auf 1e-5
+EXHAUST_FLOW_COEFF = 1.5e-4     # m³/s / sqrt(bar)
 EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 
 # Kolben-Masse
@@ -101,6 +101,7 @@ PISTON_MASS_KG = 0.5              # Masse des beweglichen Teils
 # Riemen-Übersetzung
 # 1:1 - jede Kolbenbewegung wird direkt auf die Räder übertragen
 BELT_TO_WHEEL_RATIO = 1.0
+BELT_STIFFNESS = 500.0            # N·s/m² — Kopplungssteifigkeit Riemen (pro velocity-diff * mass)
 
 # Fahrzeugparameter
 VEHICLE_MASS_KG = 5.0             # Gesamtmasse des Fahrzeugs
@@ -120,9 +121,8 @@ WHEEL_CONTACT_AREA_M2 = 0.002     # Kontaktfläche Rad-Boden
 
 # Freilauf-Bremse (wenn Kolben steht = kein Antrieb)
 # Modelliert Lagerreibung, Getriebeverluste, mechanische Dämpfung
-FREEWHEEL_BRAQUE_NM = 5.0          # Bremsmoment im Freilauf (Nm)
-FREEWHEEL_BRAKE_FORCE_N = 30.0     # Äquivalente Bremskraft am Rad (N)
-VEHICLE_MECHANICAL_DAMPING = 3000.0  # Mechanische Dämpfung (N·s/m) - begrenzt Fahrzeuggeschwindigkeit
+FREEWHEEL_BRAKE_FORCE_N = 10.0     # Äquivalente Bremskraft am Rad im Freilauf (N)
+VEHICLE_MECHANICAL_DAMPING = 500.0  # Mechanische Dämpfung (N·s/m)
 
 # ============================================================================
 # SIMULATION-PARAMETER

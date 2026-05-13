@@ -113,27 +113,6 @@ def get_exhaust_pressure(n_exhaust, x_piston, direction):
     return n_exhaust * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_exhaust_L
 
 
-def get_vehicle_acceleration(v_vehicle, F_drive, F_brake=0.0):
-    if v_vehicle < 0:
-        F_drive = max(0, F_drive)
-
-    F_roll = VEHICLE_ROLLING_RESISTANCE * VEHICLE_MASS_KG * 9.81
-    F_drag_mag = 0.5 * AERODYamic_DRAG_COEFF * 1.2 * WHEEL_CONTACT_AREA_M2 * v_vehicle**2
-
-    # Resistive forces (F_roll, F_drag, F_brake) always oppose direction of motion
-    if v_vehicle >= 0:
-        F_net = F_drive - F_roll - F_drag_mag - abs(F_brake)
-    else:
-        F_net = F_drive + F_roll + F_drag_mag + abs(F_brake)
-
-    a_vehicle = F_net / VEHICLE_MASS_KG
-
-    if v_vehicle <= 0.001 and a_vehicle < 0:
-        a_vehicle = 0.0
-
-    return np.clip(a_vehicle, -5, 5)
-
-
 # ============================================================================
 # ODE-FUNKTION (direction als Parameter, NICHT als State!)
 # ============================================================================
@@ -258,20 +237,30 @@ def chemcar_odes(t, y, direction):
     else:
         F_friction = 0.0
 
-    F_net = F_pressure + F_spring + F_friction
-    a_piston = F_net / PISTON_VEHICLE_MASS_KG
-    a_piston = np.clip(a_piston, -100, 100)
+    # --- Fahrzeug-Beschleunigung & Riemenrückwirkung ---
+    # Freilauf (Ratchet): wandelt beide Kolbenrichtungen in Vorwärtsfahrt um.
+    # Der Riemen ist eine kinematische Kopplung: wenn v_vehicle < v_piston, spannt
+    # er sich und überträgt Kraft (F_belt). Diese Kraft bremst den Kolben (Actio=Reactio).
+    driving = abs(y[2]) > 1e-6  # Kolben bewegt sich → Riemen kann in beide Richtungen schieben
+    target_v = abs(y[2]) * BELT_TO_WHEEL_RATIO
+    F_belt = 0.0
+    F_roll = VEHICLE_ROLLING_RESISTANCE * VEHICLE_MASS_KG * 9.81
 
-    # --- Fahrzeug-Beschleunigung ---
-    # Freilauf (Ratchet): wandelt beide Kolbenrichtungen in Vorwärtsfahrt um
-    if (y[2] > 1e-6 and direction > 0) or (y[2] < -1e-6 and direction < 0):
-        F_drive = abs(F_pressure) * BELT_TO_WHEEL_RATIO
-        F_brake = VEHICLE_MECHANICAL_DAMPING * abs(y[4])
+    if driving and y[4] < target_v:
+        F_belt = (target_v - y[4]) * BELT_STIFFNESS * VEHICLE_MASS_KG
+        a_vehicle = (F_belt - F_roll) / VEHICLE_MASS_KG
     else:
-        F_drive = 0.0
         F_brake = FREEWHEEL_BRAKE_FORCE_N + VEHICLE_MECHANICAL_DAMPING * abs(y[4])
+        F_drag_mag = 0.5 * AERODYamic_DRAG_COEFF * 1.2 * WHEEL_CONTACT_AREA_M2 * y[4]**2
+        a_vehicle = -(F_roll + F_drag_mag + F_brake) / VEHICLE_MASS_KG
 
-    a_vehicle = get_vehicle_acceleration(y[4], F_drive, F_brake)
+    if y[4] <= 0.001 and a_vehicle < 0:
+        a_vehicle = 0.0
+
+    belt_sign = np.sign(y[2]) if abs(y[2]) > 1e-8 else direction
+    F_net = F_pressure + F_spring + F_friction - belt_sign * F_belt
+    a_piston = F_net / PISTON_MASS_KG
+    a_piston = np.clip(a_piston, -2000, 2000)
 
     # --- Auslass-Drosselventil ---
     # sqrt(delta_P) hat eine singuläre Ableitung bei delta_P=0 (d(sqrt)/dP → ∞).

@@ -173,17 +173,8 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
                 print(f"\n  [WARN] Integration fehlgeschlagen (status={sol.status})")
                 break
         
-        # Freilauf-Bremse: Wenn Kolben steht, bremst das Fahrzeug ab
-        # Modelliert: Lagerreibung, Getriebeverluste, mechanische Dämpfung
-        if y[4] > 0.001:
-            brake_decel = (FREEWHEEL_BRAKE_FORCE_N + VEHICLE_ROLLING_RESISTANCE * VEHICLE_MASS_KG * 9.81) / VEHICLE_MASS_KG
-            # Bremszeit bis zum Stillstand
-            t_stop = y[4] / brake_decel
-            # Aggressivere Dämpfung: Fahrzeug kommt zwischen Huben fast zum Stillstand
-            decay_factor = np.exp(-min(t_stop, 3.0) / max(t_stop * 0.5, 0.05))
-            y[4] *= decay_factor
-            if y[4] < 0.001:
-                y[4] = 0.0
+        # Freilauf-Bremse wird jetzt in der ODE modelliert (get_vehicle_acceleration).
+        # Keine extra Bremskorrektur nötig.
         
         # Safety clamp: Kolbenposition innerhalb des Zylinders halten
         y[1] = np.clip(y[1], 0.0, ROD_LENGTH_M)
