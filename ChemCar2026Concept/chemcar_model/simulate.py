@@ -98,7 +98,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             event_forward = False
         
         # Integration
-        t_span = (t, min(t + 20000.0, t_max - t_global))
+        t_span = (t, min(t + 20000.0, t_max))
         
         sol = integrate.solve_ivp(
             fun=lambda t, y: chemcar_odes(t, y, direction),
@@ -198,7 +198,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
         P_current = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace if V_headspace > 0 else 0
         
-        if P_current < 1.1 and y[0] > 1e-10:
+        if P_current < 0.3 and y[0] > 1e-10:
             print(f"\n  [WARN] Reaktor-Druck ({P_current:.2f} bar) unter Feder-Schwelle")
             print(f"  Kolben bewegt sich nicht mehr. {stroke_count} Hübe abgeschlossen.")
             break

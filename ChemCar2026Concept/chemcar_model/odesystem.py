@@ -169,10 +169,15 @@ def chemcar_odes(t, y, direction):
     # --- CO2-Produktion ---
     n_co2_prod = STOICH_CO2_PER_CITRIC * drip_mol
 
-    # --- CO2-Lösung ---
+    # --- CO2-Lösung (Massenerhaltung: Verschiebung Gas ↔ gelöst) ---
     V_water_L = get_reactor_water_volume_L(y[0])
     n_co2_diss_target = get_co2_dissolved(P_reactor, V_water_L)
-    dissolution_rate = (n_co2_diss_target - y[6]) * 0.5
+    dissolution_tendency = (n_co2_diss_target - y[6]) * 0.5  # mol/s nach Henry
+    # Transfer begrenzt durch verfügbares Gas (beim Lösen) oder verfügbare Lösung (beim Entgasen)
+    if dissolution_tendency > 0:
+        n_co2_transfer = min(dissolution_tendency, max(0.0, y[5] * 10.0))
+    else:
+        n_co2_transfer = dissolution_tendency  # Entgasen: unbegrenzt (genug gelöst vorhanden)
 
     # --- Versorgungs-Druck (konstant durch Druckminderer) ---
     P_supply = REGULATOR_OUTPUT_BAR if P_reactor > REGULATOR_OUTPUT_BAR else P_reactor
@@ -218,27 +223,28 @@ def chemcar_odes(t, y, direction):
         F_pressure = 0.0
 
     # Federkraft (nur nahe den Endpunkten)
+    # Feder drückt immer in Richtung Zylindermitte:
+    #   rechtes Ende (x > 0.28): Feder drückt nach LINKS  → F_spring negativ
+    #   linkes Ende (x < 0.02):  Feder drückt nach RECHTS → F_spring positiv
     F_spring = 0.0
     if y[1] > ROD_LENGTH_M - SPRING_ACTIVE_DISTANCE_M:
         compression = y[1] - (ROD_LENGTH_M - SPRING_ACTIVE_DISTANCE_M)
-        F_spring = SPRING_CONSTANT_N_PER_M * compression
+        F_spring = -SPRING_CONSTANT_N_PER_M * compression
     elif y[1] < SPRING_ACTIVE_DISTANCE_M:
         compression = SPRING_ACTIVE_DISTANCE_M - y[1]
-        F_spring = -SPRING_CONSTANT_N_PER_M * compression
-
-
+        F_spring = SPRING_CONSTANT_N_PER_M * compression
 
     # Reibung: Coulomb + viskos
-    # Höhere viskose Dämpfung verhindert extreme Auslass-Druckspitzen
+    # Reibung wirkt IMMER entgegen der Bewegungsrichtung
     F_friction_coulomb = AXLE_FRICTION_TORQUE_NM * 2 / WHEEL_RADIUS_M
     F_friction_viscous = 1000.0 * y[2]
 
     if abs(y[2]) > 1e-8:
-        F_friction = F_friction_coulomb * np.sign(y[2]) + F_friction_viscous
+        F_friction = -F_friction_coulomb * np.sign(y[2]) - F_friction_viscous
     else:
         F_friction = 0.0
 
-    F_net = F_pressure - F_spring - F_friction
+    F_net = F_pressure + F_spring + F_friction
     a_piston = F_net / PISTON_VEHICLE_MASS_KG
     a_piston = np.clip(a_piston, -100, 100)
 
@@ -272,8 +278,8 @@ def chemcar_odes(t, y, direction):
         a_piston,                                     # [2] dv_piston/dt = a_piston
         y[4],                                         # [3] ds_vehicle/dt = v_vehicle
         a_vehicle,                                    # [4] dv_vehicle/dt
-        n_co2_prod - n_dot_regulator - n_co2_relief,  # [5] dn_co2_gas/dt
-        dissolution_rate,                             # [6] dn_co2_dissolved/dt
+        n_co2_prod - n_co2_transfer - n_dot_regulator - n_co2_relief,  # [5] dn_co2_gas/dt
+        n_co2_transfer,                               # [6] dn_co2_dissolved/dt
         0.0,                                          # [7] n_air (konstant)
         -n_flow_throttle,                             # [8] dn_exhaust/dt
     ]
