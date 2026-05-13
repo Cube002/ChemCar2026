@@ -86,16 +86,16 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     print("-" * 65)
     
     max_strokes = 500  # Safety limit
+    citric_depleted = False
     
     # --- Hauptschleife: Stroke fuer Stroke ---
     while stroke_count < max_strokes and t_global < t_max:
-        # Events fuer diesen Stroke (nur das richtungs-passende aktiv)
-        if direction > 0:
-            events = [piston_at_end_forward, citric_exhausted]
-            event_forward = True
+        # Events: nach Citric-Exhaustion nur noch Piston-End-Events (citric ist terminal)
+        if citric_depleted:
+            events = [piston_at_end_forward] if direction > 0 else [piston_at_end_reverse]
         else:
-            events = [piston_at_end_reverse, citric_exhausted]
-            event_forward = False
+            events = [piston_at_end_forward, citric_exhausted] if direction > 0 else [piston_at_end_reverse, citric_exhausted]
+        event_forward = direction > 0
         
         V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
         P_reactor_pre = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
@@ -125,7 +125,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         print(f"  [DBG]   -> status={sol.status}, steps={sol.t.size}, t_end={sol.t[-1]:.4f}s, x_end={sol.y[1,-1]*100:.2f}cm, v_end={sol.y[2,-1]*100:.4f}cm/s")
         if sol.t_events[0].size > 0:
             print(f"  [DBG]   -> Event[0] at t={sol.t_events[0][0]:.4f}s, x={sol.y_events[0][0][1]*100:.2f}cm")
-        if sol.t_events[1].size > 0:
+        if len(sol.t_events) > 1 and sol.t_events[1].size > 0:
             print(f"  [DBG]   -> Event[1] (citric) at t={sol.t_events[1][0]:.4f}s")
         
         # Event prüfen
@@ -159,11 +159,12 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
-            stroke_count += 1
+            P_react_now = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
             citric_remaining = y[0] * CITRIC_ACID_MOLAR_MASS
-            print(f"\n  [ERFOG] Zitronensäure aufgebraucht nach {stroke_count} Hueben!")
+            print(f"\n  [INFO] Zitronensäure aufgebraucht! Rest-Druck: {P_react_now:.2f} bar — treibt Kolben weiter.")
             print(f"  Rest: {citric_remaining:.4f} g")
-            break
+            citric_depleted = True
+            # KEIN break — Rest-Druck im Reaktor/Tank treibt weiter
             
         else:
             if sol.status == 0:
@@ -191,18 +192,18 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             print(f"\n  [WARN] Fahrzeuggeschwindigkeit negativ ({y[4]:.2f} m/s) — Simulation abgebrochen.")
             break
         
-        # Coast-to-stop: nach Zitronensäure-Verbrauch warten bis Fahrzeug steht
-        if y[0] < 1e-10 and abs(y[4]) < 0.01:
-            print(f"\n  [ENDE] Zitronensäure verbraucht, Fahrzeug steht. {stroke_count} Hübe abgeschlossen.")
+        # Stopp: wenn Zitronensäure verbraucht UND Fahrzeug steht (ausgerollt)
+        if citric_depleted and abs(y[4]) < 0.01:
+            print(f"\n  [ENDE] Zitronensäure/Tankdruck verbraucht, Fahrzeug steht. {stroke_count} Hübe abgeschlossen.")
             break
         
-        # Safety: Breche ab wenn Druck zu niedrig oder Pistenv steht
+        # Stopp: Reaktor-Druck zu niedrig für Feder-Vorspannung
         V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
         P_current = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace if V_headspace > 0 else 0
         
-        if P_current < 0.3 and y[0] > 1e-10:
-            print(f"\n  [WARN] Reaktor-Druck ({P_current:.2f} bar) unter Feder-Schwelle")
-            print(f"  Kolben bewegt sich nicht mehr. {stroke_count} Hübe abgeschlossen.")
+        if P_current < SPRING_PRELOAD_BAR:
+            print(f"\n  [ENDE] Reaktor-Druck ({P_current:.2f} bar) unter Feder-Schwelle ({SPRING_PRELOAD_BAR} bar)")
+            print(f"  Kolben kann Feder nicht mehr überwinden. {stroke_count} Hübe abgeschlossen.")
             break
     
     # --- Ergebnis zusammenfuegen ---
@@ -229,13 +230,15 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     print(f"  Avg. Zeit pro Hub:     {t_global / max(stroke_count, 1):.2f} s")
     print(f"  Avg. Geschwindigkeit:  {final[3] / max(t_global, 0.001):.3f} m/s")
     
-    # Theoretischer Vergleich
-    theoretical_co2_mol = y_all_concat[0, 0] * STOICH_CO2_PER_CITRIC
+    # Theoretischer Vergleich (inkl. Tank-Gas-Nachströmung)
+    theoretical_co2_mol = y_all_concat[0, 0] * STOICH_CO2_PER_CITRIC + y_all_concat[0, 9]
     theoretical_volume_L = theoretical_co2_mol * GAS_CONSTANT_BAR_L * TEMPERATURE_K / REGULATOR_OUTPUT_BAR
     theoretical_distance = theoretical_co2_mol * 0.157
     
     print(f"\n  [THEORETISCH] (ohne Verluste, alle Edukte verbraucht)")
-    print(f"  Theoretisches CO2:    ~{theoretical_co2_mol:.2f} mol")
+    print(f"  Aus Citric-Reaktion: ~{y_all_concat[0, 0] * STOICH_CO2_PER_CITRIC:.2f} mol")
+    print(f"  Aus Tank-Gasraum:    ~{y_all_concat[0, 9]:.2f} mol")
+    print(f"  Theoretisches CO2:   ~{theoretical_co2_mol:.2f} mol")
     print(f"  Theoretisches Vol.:   ~{theoretical_volume_L:.1f} L bei {REGULATOR_OUTPUT_BAR} bar")
     print(f"  Theoretische Distanz: ~{theoretical_distance:.1f} m")
     

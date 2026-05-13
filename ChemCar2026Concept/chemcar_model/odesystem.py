@@ -20,6 +20,7 @@ Zustandsvariablen (Index in y-Vektor):
     [6] n_co2_dissolved:  Molzahl CO₂ gelöst im Wasser (mol)
     [7] n_air:            Mol Luft im Reaktor (konstant, trägt zum Startdruck bei)
     [8] n_exhaust_mol:    Mol Gas in der Auslass-Kammer des Kolbens (mol)
+    [9] n_tank_gas:       Mol CO₂ im Tank-Gasraum (wird nach Citric-Verbrauch in Reaktor abgelassen)
 
 Physik-Modell:
   - Die Versorgungs-Kammer wird durch den Druckminderer konstant auf
@@ -141,6 +142,19 @@ def chemcar_odes(t, y, direction):
 
     # --- CO2-Produktion ---
     n_co2_prod = STOICH_CO2_PER_CITRIC * drip_mol
+
+    # --- Tank-Gas-Nachströmung (nach Zitronensäure-Verbrauch) ---
+    n_tank_flow = 0.0
+    if y[0] <= 0 and y[9] > 1e-10:
+        V_tank_gas_L = CITRIC_TANK_VOLUME_L  # gesamter Tank ist Gasraum
+        P_tank_gas = y[9] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_tank_gas_L
+        delta_P_tank = P_tank_gas - P_reactor
+        if delta_P_tank > 0.01:
+            rho_tank = P_tank_gas * 1e5 * CO2_MOLAR_MASS / (R_GAS * TEMPERATURE_K)
+            A_m2 = VALVE_ORIFICE_AREA_MM2 * 1e-6
+            m_dot_tank = VALVE_DISCHARGE_COEFF * A_m2 * np.sqrt(2 * rho_tank * delta_P_tank * 1e5)
+            n_tank_flow = m_dot_tank / CO2_MOLAR_MASS
+            n_tank_flow = min(n_tank_flow, y[9] * 10.0)
 
     # --- CO2-Lösung (Massenerhaltung: Verschiebung Gas ↔ gelöst) ---
     V_water_L = get_reactor_water_volume_L(y[0])
@@ -270,7 +284,7 @@ def chemcar_odes(t, y, direction):
 
     # --- Ableitungen ---
     # Regler-Durchfluss begrenzen: nie mehr CO₂ entnehmen als verfügbar
-    n_dot_regulator = min(n_dot_regulator, n_co2_prod + max(0.0, y[5]) * 10.0)
+    n_dot_regulator = min(n_dot_regulator, n_co2_prod + max(0.0, y[5]) * 10.0 + n_tank_flow)
 
     dydt = [
         -drip_mol,                                    # [0] dn_citric/dt
@@ -278,10 +292,11 @@ def chemcar_odes(t, y, direction):
         a_piston,                                     # [2] dv_piston/dt = a_piston
         y[4],                                         # [3] ds_vehicle/dt = v_vehicle
         a_vehicle,                                    # [4] dv_vehicle/dt
-        n_co2_prod - n_co2_transfer - n_dot_regulator - n_co2_relief,  # [5] dn_co2_gas/dt
+        n_co2_prod - n_co2_transfer - n_dot_regulator - n_co2_relief + n_tank_flow,  # [5] dn_co2_gas/dt
         n_co2_transfer,                               # [6] dn_co2_dissolved/dt
         0.0,                                          # [7] n_air (konstant)
         -n_flow_throttle,                             # [8] dn_exhaust/dt
+        -n_tank_flow,                                 # [9] dn_tank_gas/dt
     ]
 
     return dydt
@@ -304,6 +319,9 @@ def get_initial_state():
     V_exhaust_initial_L = get_exhaust_volume_L(0.0, 1)
     n_exhaust_initial = 1.0 * V_exhaust_initial_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
 
+    V_tank_gas_initial_L = CITRIC_TANK_VOLUME_L * (1 - CITRIC_TANK_INITIAL_FILL)
+    n_tank_gas_initial = TANK_INITIAL_PRESSURE_BAR * V_tank_gas_initial_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
+
     y0 = [
         n_citric_initial,    # [0] n_citric_mol
         0.0,                 # [1] x_piston (am linken Ende)
@@ -314,6 +332,7 @@ def get_initial_state():
         0.0,                 # [6] n_co2_dissolved
         n_air,               # [7] n_air
         n_exhaust_initial,   # [8] n_exhaust_mol
+        n_tank_gas_initial,  # [9] n_tank_gas
     ]
 
     return y0
