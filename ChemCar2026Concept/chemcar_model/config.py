@@ -11,13 +11,14 @@ ATMOSPHERIC_PRESSURE = 1.0
 
 # Oberer Tank (Edelstahl) - Zitronensäure-Tank
 CITRIC_TANK_VOLUME_L = 2.0        # Gesamtvolumen des Edelstahltanks in Litern
-CITRIC_TANK_INITIAL_FILL = 0.9    # Füllfaktor (0-1), 90% gefüllt
-CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # ~1.8 kg Lösung
+CITRIC_TANK_INITIAL_FILL = 0.1    # Füllfaktor (0-1), 10% gefüllt → nur ~27g Citronensäure
+CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # kg Lösung
 TANK_INITIAL_PRESSURE_BAR = 4.0   # Startdruck im Zitronensäure-Tank (bar)
 
 # Zitronensäure-Konzentration in der Lösung (g/L)
-# Aus Notizen: 27g Citronensäure für ~10L CO₂ bei 2 bar
-CITRIC_ACID_CONCENTRATION_G_PER_L = 135   # 270g / 2L (~13.5% Lösung)
+CITRIC_ACID_CONCENTRATION_G_PER_L = 135   # g/L der Lösung
+# Massenanteil: 135 g/L / 1000 g/L = 0.135 (13.5% der Lösungsmasse)
+CITRIC_MASS_FRACTION = CITRIC_ACID_CONCENTRATION_G_PER_L / 1000.0
 CITRIC_ACID_MOLAR_MASS = 192.12  # g/mol (C₆H₈O₇)
 
 # Untere Tank (Edelstahl) - NaHCO₃-Reaktor

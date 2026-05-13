@@ -163,6 +163,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             citric_remaining = y[0] * CITRIC_ACID_MOLAR_MASS
             print(f"\n  [ERFOG] Zitronensäure aufgebraucht nach {stroke_count} Hueben!")
             print(f"  Rest: {citric_remaining:.4f} g")
+            break
             
         else:
             if sol.status == 0:

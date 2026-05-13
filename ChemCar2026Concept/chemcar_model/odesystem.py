@@ -62,8 +62,7 @@ def get_drip_rate_mol_per_s(n_citric, P_reactor):
     if n_citric <= 0:
         return 0.0
 
-    mass_fraction_initial = (CITRIC_ACID_CONCENTRATION_G_PER_L * CITRIC_TANK_VOLUME_L) / (CITRIC_SOLUTION_MASS_KG * 1000.0)
-    m_solution_kg = (n_citric * CITRIC_ACID_MOLAR_MASS / 1000.0) / mass_fraction_initial
+    m_solution_kg = (n_citric * CITRIC_ACID_MOLAR_MASS / 1000.0) / CITRIC_MASS_FRACTION
 
     P_tank = get_tank_pressure(m_solution_kg)
     delta_P = P_tank - P_reactor
@@ -74,7 +73,7 @@ def get_drip_rate_mol_per_s(n_citric, P_reactor):
     A_m2 = VALVE_ORIFICE_AREA_MM2 * 1e-6
     drip_mass_kg_per_s = VALVE_DISCHARGE_COEFF * A_m2 * np.sqrt(2 * LIQUID_DENSITY * delta_P * 1e5)
 
-    citric_mass_kg_per_s = drip_mass_kg_per_s * mass_fraction_initial
+    citric_mass_kg_per_s = drip_mass_kg_per_s * CITRIC_MASS_FRACTION
     drip_mol_per_s = citric_mass_kg_per_s * 1000.0 / CITRIC_ACID_MOLAR_MASS
 
     return drip_mol_per_s
@@ -86,13 +85,10 @@ def get_co2_dissolved(P_bar, water_volume_L=1.0):
 
 
 def get_reactor_water_volume_L(n_citric_remaining):
-    n_citric_initial = (CITRIC_SOLUTION_MASS_KG * 
-                        (CITRIC_ACID_CONCENTRATION_G_PER_L * CITRIC_TANK_VOLUME_L) / 
-                        (CITRIC_SOLUTION_MASS_KG * 1000.0)) * 1000.0 / CITRIC_ACID_MOLAR_MASS
+    n_citric_initial = (CITRIC_SOLUTION_MASS_KG * CITRIC_MASS_FRACTION) * 1000.0 / CITRIC_ACID_MOLAR_MASS
     n_consumed = n_citric_initial - n_citric_remaining
     mass_citric_g = n_consumed * CITRIC_ACID_MOLAR_MASS
-    mass_fraction = (CITRIC_ACID_CONCENTRATION_G_PER_L * CITRIC_TANK_VOLUME_L) / (CITRIC_SOLUTION_MASS_KG * 1000.0)
-    mass_solution_g = mass_citric_g / mass_fraction
+    mass_solution_g = mass_citric_g / CITRIC_MASS_FRACTION
     return max(0.0, mass_solution_g * 0.001)
 
 
@@ -300,8 +296,7 @@ def get_initial_state():
     V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
     n_air = REACTOR_INITIAL_PRESSURE_BAR * V_headspace / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
 
-    mass_fraction = (CITRIC_ACID_CONCENTRATION_G_PER_L * CITRIC_TANK_VOLUME_L) / (CITRIC_SOLUTION_MASS_KG * 1000.0)
-    m_citric_initial = CITRIC_SOLUTION_MASS_KG * mass_fraction
+    m_citric_initial = CITRIC_SOLUTION_MASS_KG * CITRIC_MASS_FRACTION
     n_citric_initial = m_citric_initial * 1000.0 / CITRIC_ACID_MOLAR_MASS
 
     # Auslass-Kammer startet bei ambient pressure = 1 bar
