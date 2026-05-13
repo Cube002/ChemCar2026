@@ -53,3 +53,10 @@ The answer must be that the SOLVER is NOT resolving this correctly. Either:
 1. The solver takes too large a step, overshooting the equilibrium point
 2. The Jacobian is wrong, leading to convergence failure
 3. Some numerical artifact creates non-physical state values
+
+
+Thinking: Done. Let me summarize for the user.
+cc0391c gepusht. Zusammenfassung der 61-bar-Spike-Ursache:
+Root Cause: y = sol.y[:, -1] erzeugt ein numpy View (keine Kopie). Wenn der Event-Handler dann y[8] (n_exhaust) zurücksetzt, überschreibt das in-place das letzte Element von sol.y[8] — also die bereits in y_all gespeicherten ODE-Daten.
+Kette: Event feuert → n_exhaust aus ODE ≈ 0.000156 mol → y[8] wird auf 0.008846 mol zurückgesetzt → korrumpiert sol.y[8,-1] → CSV/NPZ haben den Reset-Wert statt des ODE-Werts → save_results berechnet P_exhaust mit falscher Richtung (aus v_piston > 0 statt actual direction) → falsches Volumen (0.0035L statt 0.216L) → 61 bar.
+Fix: .copy() auf alle sol.y[:, -1] Zugriffe in den Event-Handlern + direction_at_t an save_results übergeben.

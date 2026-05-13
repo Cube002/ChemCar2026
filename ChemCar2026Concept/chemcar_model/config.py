@@ -25,7 +25,7 @@ REACTOR_VOLUME_L = 3.0            # Volumen des Reaktors in Litern
 REACTOR_HEADSPACE_RATIO = 0.1     # 10% des Volumens ist Gasraum (Luftvorfüllung)
 REACTOR_INITIAL_PRESSURE_BAR = 1.0 # Startdruck im Reaktor (bar) - atmosphärisch
 
-# Natron (NaHCO₃) im Reaktor - im Überschuss
+# Natron (NaHCO₃) im Reaktor - im Überschuss (löslichkeit in wasser: 95g/l)
 NACHTRON_MASS_KG = 0.35           # 350 g NaHCO₃
 NACHTRON_MOLAR_MASS = 84.01       # g/mol (NaHCO₃)
 

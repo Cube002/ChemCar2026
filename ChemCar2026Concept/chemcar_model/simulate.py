@@ -134,9 +134,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
+            P_react_event = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+            P_supply_event = REGULATOR_OUTPUT_BAR if P_react_event > REGULATOR_OUTPUT_BAR else P_react_event
             direction = -1
             V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
-            y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
+            y[8] = P_supply_event * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
             stroke_count += 1
             print(f"  Stroke {stroke_count}: Kolben -> LINKS (x = {y[1]*100:.1f} cm)")
             
@@ -145,9 +147,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
+            P_react_event = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+            P_supply_event = REGULATOR_OUTPUT_BAR if P_react_event > REGULATOR_OUTPUT_BAR else P_react_event
             direction = +1
             V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
-            y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
+            y[8] = P_supply_event * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
             stroke_count += 1
             print(f"  Stroke {stroke_count}: Kolben -> RECHTS (x = {y[1]*100:.1f} cm)")
             
@@ -165,9 +169,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
                 y = sol.y[:, -1].copy()
                 t = sol.t[-1]
                 t_global = t
+                P_react_event = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+                P_supply_event = REGULATOR_OUTPUT_BAR if P_react_event > REGULATOR_OUTPUT_BAR else P_react_event
                 direction *= -1
                 V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
-                y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
+                y[8] = P_supply_event * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
                 stroke_count += 1
             else:
                 print(f"\n  [WARN] Integration fehlgeschlagen (status={sol.status})")
