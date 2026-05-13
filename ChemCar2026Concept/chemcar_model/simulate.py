@@ -106,7 +106,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             fun=lambda t, y: chemcar_odes(t, y, direction),
             t_span=t_span,
             y0=list(y),
-            method='BDF',
+            method='Radau',
             events=events,
             rtol=1e-6,
             atol=1e-8,
@@ -182,6 +182,19 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             y[4] *= decay_factor
             if y[4] < 0.001:
                 y[4] = 0.0
+        
+        # Safety clamp: Kolbenposition innerhalb des Zylinders halten
+        y[1] = np.clip(y[1], 0.0, ROD_LENGTH_M)
+        
+        # Backwards detection: terminate if vehicle speed is significantly negative
+        if y[4] < -0.01:
+            print(f"\n  [WARN] Fahrzeuggeschwindigkeit negativ ({y[4]:.2f} m/s) — Simulation abgebrochen.")
+            break
+        
+        # Coast-to-stop: nach Zitronensäure-Verbrauch warten bis Fahrzeug steht
+        if y[0] < 1e-10 and abs(y[4]) < 0.01:
+            print(f"\n  [ENDE] Zitronensäure verbraucht, Fahrzeug steht. {stroke_count} Hübe abgeschlossen.")
+            break
         
         # Safety: Breche ab wenn Druck zu niedrig oder Pistenv steht
         V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO

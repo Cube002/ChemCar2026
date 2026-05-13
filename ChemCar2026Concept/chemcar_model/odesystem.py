@@ -120,9 +120,14 @@ def get_vehicle_acceleration(v_vehicle, F_drive, F_brake=0.0):
         F_drive = max(0, F_drive)
 
     F_roll = VEHICLE_ROLLING_RESISTANCE * VEHICLE_MASS_KG * 9.81
-    F_drag = 0.5 * AERODYamic_DRAG_COEFF * 1.2 * WHEEL_CONTACT_AREA_M2 * max(0, v_vehicle)**2
+    F_drag_mag = 0.5 * AERODYamic_DRAG_COEFF * 1.2 * WHEEL_CONTACT_AREA_M2 * v_vehicle**2
 
-    F_net = F_drive - F_roll - F_drag - F_brake
+    # Resistive forces (F_roll, F_drag, F_brake) always oppose direction of motion
+    if v_vehicle >= 0:
+        F_net = F_drive - F_roll - F_drag_mag - abs(F_brake)
+    else:
+        F_net = F_drive + F_roll + F_drag_mag + abs(F_brake)
+
     a_vehicle = F_net / VEHICLE_MASS_KG
 
     if v_vehicle <= 0.001 and a_vehicle < 0:
@@ -205,6 +210,13 @@ def chemcar_odes(t, y, direction):
     # (auch wenn direction unverändert bleibt - korrektes physikalisches Verhalten)
     F_pressure = direction * (P_supply - P_exhaust) * 1e5 * PISTON_AREA_M2
 
+    # Sicherheit: Kolben darf nicht aus dem Zylinder gedrückt werden.
+    # Falls der Kolben ausserhalb ist (Event verpasst), nur nach innen wirkende Kraft zulassen.
+    if y[1] < 0 and F_pressure < 0:
+        F_pressure = 0.0
+    elif y[1] > ROD_LENGTH_M and F_pressure > 0:
+        F_pressure = 0.0
+
     # Federkraft (nur nahe den Endpunkten)
     F_spring = 0.0
     if y[1] > ROD_LENGTH_M - SPRING_ACTIVE_DISTANCE_M:
@@ -213,6 +225,8 @@ def chemcar_odes(t, y, direction):
     elif y[1] < SPRING_ACTIVE_DISTANCE_M:
         compression = SPRING_ACTIVE_DISTANCE_M - y[1]
         F_spring = -SPRING_CONSTANT_N_PER_M * compression
+
+
 
     # Reibung: Coulomb + viskos
     # Höhere viskose Dämpfung verhindert extreme Auslass-Druckspitzen
@@ -232,7 +246,7 @@ def chemcar_odes(t, y, direction):
     # Freilauf (Ratchet): wandelt beide Kolbenrichtungen in Vorwärtsfahrt um
     if (y[2] > 1e-6 and direction > 0) or (y[2] < -1e-6 and direction < 0):
         F_drive = abs(F_pressure) * BELT_TO_WHEEL_RATIO
-        F_brake = 0.0
+        F_brake = VEHICLE_MECHANICAL_DAMPING * abs(y[4])
     else:
         F_drive = 0.0
         F_brake = FREEWHEEL_BRAKE_FORCE_N + VEHICLE_MECHANICAL_DAMPING * abs(y[4])
@@ -309,14 +323,13 @@ def piston_at_end_forward(t, y):
     return y[1] - ROD_LENGTH_M
 
 piston_at_end_forward.terminal = True
-piston_at_end_forward.direction = 1
+# Direction filtering is handled in simulate.py by selecting which event to pass
 
 
 def piston_at_end_reverse(t, y):
     return y[1] - 0.0
 
 piston_at_end_reverse.terminal = True
-piston_at_end_reverse.direction = -1
 
 
 def citric_exhausted(t, y):
