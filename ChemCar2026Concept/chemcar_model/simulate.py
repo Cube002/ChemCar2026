@@ -23,13 +23,14 @@ DIESER ANSATZ IST NOTWENDIG, WEIL:
 AUFRUF:
     python simulate.py [--plot] [--time N]
     
-    --plot  : Plots generieren und als PNG speichern (optional)
+    --plot  : Plots generieren und anzeigen, speichert PNG + PDF (optional)
     --time N: Maximale Simulationszeit in Sekunden (default: 600)
 
 ERGEBNISSE:
     chemcar_results.npz   : NumPy-Array mit allen Zeitreihen
     chemcar_results.csv   : CSV-Export für Excel/Analyse
-    chemcar_plots.png     : 4 Plots (wenn --plot verwendet)
+    chemcar_plots.png     : Übersichts-Plots (wenn --plot verwendet)
+    chemcar_plots.pdf     : Vektorgrafik zum Zoomen (wenn --plot verwendet)
 """
 
 import numpy as np
@@ -37,13 +38,10 @@ from scipy import integrate
 import os
 import sys
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
 sys.path.insert(0, os.path.dirname(__file__))
 from config import *
 from odesystem import chemcar_odes, get_initial_state, piston_at_end_forward, piston_at_end_reverse, citric_exhausted, get_exhaust_volume_L
+from plotting import plot_results
 
 
 # ============================================================================
@@ -100,7 +98,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             event_forward = False
         
         # Integration
-        t_span = (t, min(t + 30000.0, t_max - t_global))
+        t_span = (t, min(t + 20000.0, t_max - t_global))
         
         sol = integrate.solve_ivp(
             fun=lambda t, y: chemcar_odes(t, y, direction),
@@ -241,103 +239,13 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # Plots
     if plot and len(t_all) > 1:
-        V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-        P_reactor = (y_all_concat[:, 5] + y_all_concat[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
-        
-        P_exhaust = np.zeros(len(t_all))
-        for i in range(len(t_all)):
-            d = direction_at_t[i] if i < len(direction_at_t) else direction
-            P_exhaust[i] = y_all_concat[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y_all_concat[i, 1], d), 0.001)
-        plot_results(t_all, y_all_concat, P_exhaust)
+        plot_results(np.array(t_all), y_all_concat, direction_at_t, show=True)
     
     return np.array(t_all), y_all_concat
 
 
 # ============================================================================
-# PLOTTING
-# ============================================================================
-
-
-def plot_results(t, y, P_exhaust):
-    """
-    Erzeugt 4 Plots und speichert als PNG.
-    
-    y columns (9 Zustandsvariablen):
-        [0] n_citric_mol
-        [1] x_piston_m
-        [2] v_piston_m_s
-        [3] s_vehicle_m
-        [4] v_vehicle_m_s
-        [5] n_co2_gas_mol
-        [6] n_co2_dissolved_mol
-        [7] n_air_mol
-        [8] n_exhaust_mol
-    """
-    V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-    P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
-    
-    fig, axes = plt.subplots(5, 1, figsize=(14, 20), sharex=True)
-    fig.suptitle('ChemCar Mehrfachhubsystem — Simulationsergebnis', fontsize=14, fontweight='bold')
-    
-    # Plot 1: Zitronensäure + CO2
-    ax1 = axes[0]
-    ax1.plot(t, y[:, 0] * CITRIC_ACID_MOLAR_MASS, 'b-', linewidth=1.5, label='Zitronensäure (g)')
-    ax1.plot(t, y[:, 5] * CO2_MOLAR_MASS, 'r--', linewidth=1.5, label='CO2 (Gas, g)')
-    ax1.plot(t, y[:, 6] * CO2_MOLAR_MASS, 'orange', linewidth=1.5, label='CO2 (gelöst, g)')
-    ax1.set_ylabel('Masse [g]')
-    ax1.set_title('Chemische Reaktionen')
-    ax1.legend(loc='upper right', fontsize=9)
-    ax1.grid(True, alpha=0.3)
-    
-    # Plot 2: Reaktor-Druck
-    ax2 = axes[1]
-    ax2.plot(t, P_reactor, 'purple', linewidth=1.5)
-    ax2.axhline(y=SPRING_PRELOAD_BAR, color='red', linestyle='--', linewidth=1, label=f'Feder-Schwelle ({SPRING_PRELOAD_BAR} bar)')
-    ax2.axhline(y=REGULATOR_OUTPUT_BAR, color='blue', linestyle='--', linewidth=1, label=f'Regulator ({REGULATOR_OUTPUT_BAR} bar)')
-    ax2.axhline(y=RELIEF_VALVE_SET_BAR, color='darkred', linestyle='-.', linewidth=1.5, label=f'Relief Valve ({RELIEF_VALVE_SET_BAR} bar)')
-    ax2.set_ylabel('Druck [bar]')
-    ax2.set_title('Reaktor-Druck')
-    ax2.legend(loc='upper right', fontsize=9)
-    ax2.grid(True, alpha=0.3)
-    
-    # Plot 3: Auslass-Kammer Druck
-    ax3 = axes[2]
-    ax3.plot(t, P_exhaust, 'c-', linewidth=1.5, label='P_Auslass')
-    ax3.axhline(y=1.0, color='gray', linestyle=':', linewidth=1, label='Ambient (1 bar)')
-    ax3.set_ylabel('Druck [bar]')
-    ax3.set_title('Auslass-Kammer Druck')
-    ax3.legend(loc='upper right', fontsize=9)
-    ax3.grid(True, alpha=0.3)
-    
-    # Plot 4: Kolbenposition + Geschwindigkeit
-    ax4 = axes[3]
-    ax4.plot(t, y[:, 1] * 100, 'b-', linewidth=1.5, label='Kolbenposition')
-    ax4.plot(t, y[:, 2] * 100, 'r-', linewidth=1, alpha=0.7, label='Kolbengeschw.')
-    ax4.axhline(y=ROD_LENGTH_M * 100, color='gray', linestyle=':', linewidth=1)
-    ax4.axhline(y=0, color='gray', linestyle=':', linewidth=1)
-    ax4.set_ylabel('Position [cm] / Geschw. [cm/s]')
-    ax4.set_title('Pneumatik-Zylinder')
-    ax4.legend(loc='upper right', fontsize=9)
-    ax4.grid(True, alpha=0.3)
-    
-    # Plot 5: Fahrzeugdistanz + Geschwindigkeit
-    ax5 = axes[4]
-    ax5.plot(t, y[:, 3], 'g-', linewidth=2, label='Fahrzeugdistanz')
-    ax5.plot(t, y[:, 4] * 100, 'orange', linewidth=1, alpha=0.7, label='Fahrzeuggeschw. [cm/s]')
-    ax5.set_xlabel('Zeit [s]')
-    ax5.set_ylabel('Distanz [m] / Geschw. [cm/s]')
-    ax5.set_title('Fahrzeugbewegung')
-    ax5.legend(loc='upper right', fontsize=9)
-    ax5.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    
-    output_path = os.path.join(os.path.dirname(__file__), 'chemcar_plots.png')
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    print(f"\nPlots gespeichert: {output_path}")
-    plt.close()
-
-
+# EXPORT
 # ============================================================================
 # EXPORT
 # ============================================================================

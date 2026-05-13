@@ -67,7 +67,7 @@ RELIEF_VALVE_FLOW_COEFF = 0.01    # Flow-Koeffizient für Druckentlastung
 # ============================================================================
 
 ROD_LENGTH_M = 0.30               # Hubweg in Metern (30 cm)
-PISTON_DIAMETER_MM = 40.0         # Kolbendurchmesser in mm (Standard Festo)
+PISTON_DIAMETER_MM = 30.0         # Kolbendurchmesser in mm (Standard Festo)
 PISTON_AREA_M2 = 3.14159 * (PISTON_DIAMETER_MM / 1000.0)**2 / 4.0
 
 # Feder-Eigenschaften (pro Feder an jedem Ende)
@@ -121,7 +121,7 @@ VEHICLE_MECHANICAL_DAMPING = 3000.0  # Mechanische Dämpfung (N·s/m) - begrenzt
 # SIMULATION-PARAMETER
 # ============================================================================
 
-SIMULATION_TIME_MAX = 600.0         # Max. Simulationszeit in Sekunden (10 min)
+SIMULATION_TIME_MAX = 200.0         # Max. Simulationszeit in Sekunden (10 min)
 SIMULATION_DT = 0.001               # Schrittweite für BDF-Adaptivschritt (max)
 SIMULATION_TOL = 1e-6               # Toleranz des Integrators
 
