@@ -56,7 +56,7 @@ REGULATOR_FLOW_COEFF = 5e-4       # m³/s / sqrt(bar) — Flow durch Regler (lim
 REGULATOR_INACTIVE_THRESHOLD_BAR = 1.0  # Unter diesem Druck regelt der Minderer nicht
 
 # Feder-Schwelle am Kolben
-SPRING_PRELOAD_BAR = 1.9          # Mindestdruck um Feder zu komprimieren (bar)
+SPRING_PRELOAD_BAR = 1.5          # Mindestdruck um Feder zu komprimieren (bar)
 
 # Überdruckventil (Safety Relief Valve)
 RELIEF_VALVE_SET_BAR = 4.4        # 1.1 * 4 bar max operating pressure
@@ -75,7 +75,7 @@ SPRING_ACTIVE_DISTANCE_M = 0.02   # Feder wirkt in den letzten 2cm des Hubwegs
 SPRING_SMOOTH_WIDTH_M = 0.001    # 1 mm C1-Übergangszone (verhindert Jacobian-Sprung)
 # Federkonstante berechnet aus Schwellendruck: F_spring_max = k * 0.02 = P * A
 # Damit ~1.9 bar nötig sind um Feder ganz zusammenzudrücken
-SPRING_CONSTANT_N_PER_M = (SPRING_PRELOAD_BAR * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
+SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR) * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
 
 # Drosselventil (Exhaust)
 # Das Drosselventil am Pneumatikzylinder limitiert den Gasausstrom
@@ -85,7 +85,7 @@ SPRING_CONSTANT_N_PER_M = (SPRING_PRELOAD_BAR * 1e5 * PISTON_AREA_M2) / SPRING_A
 # - Exhaust-Kammer baut Gegendruck auf → natürliche Geschwindigkeitsbegrenzung
 # - Feder+Exhaust bremsen den Kolben sanft an den Hubenden
 # - Keine harten if/else Diskontinuitäten — alles physikalisch über Kraftbilanz
-EXHAUST_FLOW_COEFF = 3.0e-5     # m³/s / sqrt(bar)
+EXHAUST_FLOW_COEFF = 3.0e-3     # m³/s / sqrt(bar)
 EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 
 # Kolben-Masse
@@ -128,7 +128,7 @@ VEHICLE_MECHANICAL_DAMPING = 3000.0  # Mechanische Dämpfung (N·s/m) - begrenzt
 # SIMULATION-PARAMETER
 # ============================================================================
 
-SIMULATION_TIME_MAX = 200.0         # Max. Simulationszeit in Sekunden (10 min)
+SIMULATION_TIME_MAX = 100.0         # Max. Simulationszeit in Sekunden 
 SIMULATION_DT = 0.001               # Schrittweite für BDF-Adaptivschritt (max)
 SIMULATION_TOL = 1e-6               # Toleranz des Integrators
 
