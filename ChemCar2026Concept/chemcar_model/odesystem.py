@@ -96,29 +96,21 @@ def get_reactor_water_volume_L(n_citric_remaining):
     return max(0.0, mass_solution_g * 0.001)
 
 
-DEAD_VOLUME_M = 0.005  # physikalisches Totvolumen an den Zylinderenden
-
-def get_exhaust_pressure(n_exhaust, x_piston, direction):
-    if direction > 0:
-        # V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2 #this is unphysical, because the piston keeps moving without the volume decreasing!!! TODO
-        V_exhaust_m3 = (ROD_LENGTH_M - x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
-    else:
-        #V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
-        V_exhaust_m3 = (x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
-
-    V_exhaust_L = V_exhaust_m3 * 1000.0
-    P_exhaust = n_exhaust * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_exhaust_L
-    return P_exhaust
-
+DEAD_VOLUME_M = 0.005  # Totvolumen in Schläuchen/Ventilen (additiv, nicht als Stopp)
 
 def get_exhaust_volume_L(x_piston, direction):
     if direction > 0:
-        # V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
         V_exhaust_m3 = (ROD_LENGTH_M - x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
     else:
-        #V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
         V_exhaust_m3 = (x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
     return V_exhaust_m3 * 1000.0
+
+
+def get_exhaust_pressure(n_exhaust, x_piston, direction):
+    V_exhaust_L = get_exhaust_volume_L(x_piston, direction)
+    if V_exhaust_L <= 0:
+        return MAX_PRESSURE_BAR
+    return n_exhaust * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_exhaust_L
 
 
 def get_vehicle_acceleration(v_vehicle, F_drive, F_brake=0.0):
@@ -324,8 +316,8 @@ def get_initial_state():
     n_citric_initial = m_citric_initial * 1000.0 / CITRIC_ACID_MOLAR_MASS
 
     # Auslass-Kammer startet bei ambient pressure = 1 bar
-    # Startposition x=0: Kolben am linken Ende, Auslass = rechte Kammer
-    V_exhaust_initial_L = ROD_LENGTH_M * PISTON_AREA_M2 * 1000.0
+    # Startposition x=0: Kolben am linken Ende, direction=+1 → Auslass = rechte Kammer
+    V_exhaust_initial_L = get_exhaust_volume_L(0.0, 1)
     n_exhaust_initial = 1.0 * V_exhaust_initial_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
 
     y0 = [

@@ -135,7 +135,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             t = sol.t[-1]
             t_global = t
             direction = -1
-            V_new_exhaust_L = y[1] * PISTON_AREA_M2 * 1000.0
+            V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
             y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
             stroke_count += 1
             print(f"  Stroke {stroke_count}: Kolben -> LINKS (x = {y[1]*100:.1f} cm)")
@@ -146,7 +146,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             t = sol.t[-1]
             t_global = t
             direction = +1
-            V_new_exhaust_L = (ROD_LENGTH_M - y[1]) * PISTON_AREA_M2 * 1000.0
+            V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
             y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
             stroke_count += 1
             print(f"  Stroke {stroke_count}: Kolben -> RECHTS (x = {y[1]*100:.1f} cm)")
@@ -166,11 +166,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
                 t = sol.t[-1]
                 t_global = t
                 direction *= -1
-                # Neue Auslass-Kammer = alte Versorgung (2 bar)
-                if direction > 0:
-                    V_new_exhaust_L = (ROD_LENGTH_M - y[1]) * PISTON_AREA_M2 * 1000.0
-                else:
-                    V_new_exhaust_L = y[1] * PISTON_AREA_M2 * 1000.0
+                V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
                 y[8] = 1.0 * V_new_exhaust_L / (GAS_CONSTANT_BAR_L * TEMPERATURE_K)
                 stroke_count += 1
             else:
