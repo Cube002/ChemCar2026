@@ -131,7 +131,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         # Event prüfen
         if sol.t_events[0].size > 0 and event_forward:
             # rechtes Ende erreicht → toggle zu -1 (links)
-            y = sol.y[:, -1]
+            y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
             direction = -1
@@ -142,7 +142,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             
         elif sol.t_events[0].size > 0 and not event_forward:
             # linkes Ende erreicht → toggle zu +1 (rechts)
-            y = sol.y[:, -1]
+            y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
             direction = +1
@@ -152,7 +152,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             print(f"  Stroke {stroke_count}: Kolben -> RECHTS (x = {y[1]*100:.1f} cm)")
             
         elif sol.t_events[1].size > 0:
-            y = sol.y[:, -1]
+            y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
             stroke_count += 1
@@ -162,7 +162,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             
         else:
             if sol.status == 0:
-                y = sol.y[:, -1]
+                y = sol.y[:, -1].copy()
                 t = sol.t[-1]
                 t_global = t
                 direction *= -1
@@ -202,9 +202,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     if y_all:
         y_all_concat = np.concatenate(y_all, axis=0)
         t_all = np.array(t_all)
+        dir_arr = np.array(direction_at_t)
     else:
         y_all_concat = np.array([y])
         t_all = np.array([t_global])
+        dir_arr = np.array([direction])
     
     # --- Zusammenfassung ---
     final = y_all_concat[-1]
@@ -234,9 +236,9 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # Plots
     if plot and len(t_all) > 1:
-        plot_results(np.array(t_all), y_all_concat, direction_at_t, show=True)
+        plot_results(np.array(t_all), y_all_concat, dir_arr, show=True)
     
-    return np.array(t_all), y_all_concat
+    return np.array(t_all), y_all_concat, dir_arr
 
 
 # ============================================================================
@@ -246,14 +248,14 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
 # ============================================================================
 
 
-def save_results(t, y, filename='chemcar_results'):
+def save_results(t, y, direction_at_t, filename='chemcar_results'):
     """Speichert Ergebnisse als .npz und .csv."""
     V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
     P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
     
     P_exhaust = np.zeros(len(t))
     for i in range(len(t)):
-        d = 1 if y[i, 2] >= 0 else -1
+        d = direction_at_t[i] if i < len(direction_at_t) else (1 if y[i, 2] >= 0 else -1)
         P_exhaust[i] = y[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y[i, 1], d), 0.001)
     
     data = {
@@ -269,6 +271,7 @@ def save_results(t, y, filename='chemcar_results'):
         'P_exhaust_bar': P_exhaust,
         'n_air_mol': y[:, 7],
         'n_exhaust_mol': y[:, 8],
+        'direction': np.array(direction_at_t) if len(direction_at_t) == len(t) else np.zeros(len(t)),
     }
     npz_path = os.path.join(os.path.dirname(__file__), filename + '.npz')
     np.savez(npz_path, **data)
@@ -294,5 +297,5 @@ if __name__ == '__main__':
     parser.add_argument('--time', type=float, default=SIMULATION_TIME_MAX, help='Max Simulationszeit (s)')
     args = parser.parse_args()
     
-    t, y = simulate(t_max=args.time, plot=args.plot)
-    save_results(t, y)
+    t, y, dir_arr = simulate(t_max=args.time, plot=args.plot)
+    save_results(t, y, dir_arr)
