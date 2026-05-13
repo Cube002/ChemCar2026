@@ -4,7 +4,7 @@ Parameter-Konfiguration für das ChemCar Mehrfachhubsystem.
 Alle Werte basieren auf dem Konzeptbericht (Citric Aixpress, 2026)
 und den Notizen. Leicht anpassbar für Sensitivitätsanalysen.
 """
-
+ATMOSPHERIC_PRESSURE = 1.0
 # ============================================================================
 # CHEMISCHE REAKTOR-PARAMETER
 # ============================================================================
@@ -56,7 +56,7 @@ REGULATOR_FLOW_COEFF = 5e-4       # m³/s / sqrt(bar) — Flow durch Regler (lim
 REGULATOR_INACTIVE_THRESHOLD_BAR = 1.0  # Unter diesem Druck regelt der Minderer nicht
 
 # Feder-Schwelle am Kolben
-SPRING_PRELOAD_BAR = 1.5          # Mindestdruck um Feder zu komprimieren (bar)
+SPRING_PRELOAD_BAR = 1.1         # Mindestdruck um Feder zu komprimieren (bar)
 
 # Überdruckventil (Safety Relief Valve)
 RELIEF_VALVE_SET_BAR = 4.4        # 1.1 * 4 bar max operating pressure
@@ -75,7 +75,7 @@ SPRING_ACTIVE_DISTANCE_M = 0.02   # Feder wirkt in den letzten 2cm des Hubwegs
 SPRING_SMOOTH_WIDTH_M = 0.001    # 1 mm C1-Übergangszone (verhindert Jacobian-Sprung)
 # Federkonstante berechnet aus Schwellendruck: F_spring_max = k * 0.02 = P * A
 # Damit ~1.9 bar nötig sind um Feder ganz zusammenzudrücken
-SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR) * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
+SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR - ATMOSPHERIC_PRESSURE) * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
 
 # Drosselventil (Exhaust)
 # Das Drosselventil am Pneumatikzylinder limitiert den Gasausstrom
@@ -85,7 +85,7 @@ SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR) * 1e5 * PISTON_AREA_M2) / SPRING
 # - Exhaust-Kammer baut Gegendruck auf → natürliche Geschwindigkeitsbegrenzung
 # - Feder+Exhaust bremsen den Kolben sanft an den Hubenden
 # - Keine harten if/else Diskontinuitäten — alles physikalisch über Kraftbilanz
-EXHAUST_FLOW_COEFF = 3.0e-3     # m³/s / sqrt(bar)
+EXHAUST_FLOW_COEFF = 2.5e-5     # m³/s / sqrt(bar) # herunter gesetzt von 3e-3 auf 1e-5
 EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 
 # Kolben-Masse
@@ -138,6 +138,9 @@ GAS_CONSTANT_BAR_L = 0.08314        # bar·L/(mol·K)
 
 # Standard-Temperatur (K)
 TEMPERATURE_K = 293.15              # 20°C
+
+# Atmosphärendruck
+ATMOSPHERIC_PRESSURE = 1.0          # bar (Referenz für Feder-Vorspannung)
 
 # Numerische Sicherheit
 MAX_PRESSURE_BAR = 50.0             # Obere Grenze für Druck (bar)

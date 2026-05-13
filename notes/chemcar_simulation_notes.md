@@ -1,6 +1,6 @@
 # ChemCar Simulation — Persistent Notes
 
-**Stand:** 12.05.2026 (Session 02 completed)
+**Stand:** 13.05.2026 (Session 03 in progress)
 
 ---
 
@@ -75,14 +75,61 @@ n_dot_regulator = min(n_dot_regulator, n_co2_prod + max(0, n_co2_gas) * 10.0)
 - **P_exhaust mid‑stroke:** ~1.001 bar (throttle handles compression easily)
 - **Strokes completed:** 34 before abort at P_reactor < 1.1 bar
 
+---
+
+## Session 03: Spring Physics & Solver Stability (13.05.2026)
+
+### Spring Formula Correction
+
+**Problem:** Spring preload was calculated as absolute 1.9 bar, but one side of the piston
+always has 1 bar atmosphere → net preload was only 0.9 bar effective.
+
+**Fix:**
+```python
+ATMOSPHERIC_PRESSURE = 1.0
+SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR - ATMOSPHERIC_PRESSURE) * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M
+```
+Result: `k = (1.9 - 1.0) * 1e5 * 7.07e-4 / 0.02 = 3182 N/m`
+
+### C1-Smooth Spring Engagement
+
+**Problem:** Hard if/elif spring engagement at x=0.28 and x=0.02 caused a Jacobian
+discontinuity (dF/dx: 0 → -k), breaking Radau/LSODA convergence at higher k values.
+
+**Fix:** Cubic Hermite smoothstep over 1 mm transition zone (`SPRING_SMOOTH_WIDTH_M = 0.001`):
+- `f(0) = 0, f'(0) = 0` at engagement point
+- `f(h) = -k*h, f'(h) = -k` at full engagement
+- Eliminates finite-difference Jacobian errors
+
+### Exhaust Flow Coefficient Restored
+
+`EXHAUST_FLOW_COEFF = 3e-3` (was incorrectly set to 3e-5 in a previous session).
+The 3e-5 value caused terminal piston velocity < 0.1 cm/s (impossibly slow).
+At 3e-3 the terminal mid-stroke velocity is ~7 cm/s.
+
+### Current Performance
+
+| Metric | Value |
+|--------|-------|
+| Strokes in 60 s | 11 |
+| Time per stroke | ~5.5 s |
+| P_reactor | 2.08 → 1.97 bar (slow decline) |
+| Terminal v_piston (mid-stroke) | ~7 cm/s |
+| Vehicle top speed | ~2.2 cm/s |
+| Total distance | 1.15 m |
+
+### Remaining Issues
+
+1. **Vehicle too slow** — VEHICLE_MECHANICAL_DAMPING = 3000 N·s/m caps speed at 2.2 cm/s
+2. **P_reactor declining** — drip rate insufficient; CO₂ consumption > production
+3. **Vehicle damping between strokes** — FREEWHEEL_BRAKE_FORCE_N = 30 N slows car too much
+
 ### Next Tuning Steps
 
 1. **Increase drip rate** (VALVE_ORIFICE_AREA_MM2 or CITRIC_ACID_CONCENTRATION_G_PER_L)
-   so CO₂ production exceeds regulator consumption → P_reactor stays above 1.1 bar
-2. **Fix vehicle damping** — apply VEHICLE_MECHANICAL_DAMPING continuously (not just
-   between strokes) to cap top speed at ~1 m/s
-3. **Test closed‑mass model** — return exhaust gas to reactor instead of venting to
-   atmosphere (more realistic for competition)
+   so CO₂ production exceeds regulator consumption → P_reactor stays above 2 bar
+2. **Reduce vehicle damping** — lower VEHICLE_MECHANICAL_DAMPING to ~500 N·s/m
+3. **Reduce freewheel brake** — lower FREEWHEEL_BRAKE_FORCE_N
 
 ---
 

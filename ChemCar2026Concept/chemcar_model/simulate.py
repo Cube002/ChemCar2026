@@ -97,6 +97,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             events = [piston_at_end_reverse, citric_exhausted]
             event_forward = False
         
+        V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
+        P_reactor_pre = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
+        P_exhaust_pre = y[8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y[1], direction), 0.001)
+        print(f"  [DBG] Hub {stroke_count+1}: dir={direction:+d}, x={y[1]*100:.2f}cm, v={y[2]*100:.4f}cm/s, P_react={P_reactor_pre:.2f}bar, P_exh={P_exhaust_pre:.2f}bar, n_exh={y[8]:.6f}mol")
+        
         # Integration
         t_span = (t, min(t + 20000.0, t_max))
         
@@ -113,12 +118,15 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         
         # Ergebnisse speichern
         if sol.t.size > 1:
-            V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-            P = (sol.y[5, :] + sol.y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
-            
             t_all.extend(sol.t.tolist())
             y_all.append(sol.y.T)
             direction_at_t.extend([direction] * len(sol.t))
+        
+        print(f"  [DBG]   -> status={sol.status}, steps={sol.t.size}, t_end={sol.t[-1]:.4f}s, x_end={sol.y[1,-1]*100:.2f}cm, v_end={sol.y[2,-1]*100:.4f}cm/s")
+        if sol.t_events[0].size > 0:
+            print(f"  [DBG]   -> Event[0] at t={sol.t_events[0][0]:.4f}s, x={sol.y_events[0][0][1]*100:.2f}cm")
+        if sol.t_events[1].size > 0:
+            print(f"  [DBG]   -> Event[1] (citric) at t={sol.t_events[1][0]:.4f}s")
         
         # Event prüfen
         if sol.t_events[0].size > 0 and event_forward:
