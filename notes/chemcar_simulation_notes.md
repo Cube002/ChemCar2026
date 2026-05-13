@@ -1,6 +1,88 @@
 # ChemCar Simulation — Persistent Notes
 
-**Stand:** 12.05.2026
+**Stand:** 12.05.2026 (Session 02 completed)
+
+---
+
+## Session 02: Micro‑Oscillation Debug & Fix (12.05.2026)
+
+### Root Cause of Micro‑Oscillation
+
+**Symptom:** 500 "strokes" in 4.6s (~0.009s each), CSV showed piston moving monotonically 0→30cm.
+
+**Cause:** Event ping‑pong at stroke boundaries. After `piston_at_end_forward` fired at x=30cm,
+the next `solve_ivp` started with **both events active** including `piston_at_end_reverse`.
+Since `piston_at_end_reverse` = y[1] − 0.0 returned exactly 0 at the initial state,
+`solve_ivp` immediately re‑fired → direction toggle → infinite loop feeding `stroke_count`.
+
+**Fix:** Only pass the direction‑appropriate event to `solve_ivp`:
+- `direction=+1` → only `piston_at_end_forward` + `citric_exhausted`
+- `direction=-1` → only `piston_at_end_reverse` + `citric_exhausted`
+
+### Integration Failure at Stroke 15
+
+**Symptom:** BDF solver returned status=−1 always at stroke 15 (~60s), exactly when
+P_reactor reached REGULATOR_OUTPUT_BAR (= 2.0 bar).
+
+**Cause:** The regulator flow equation had a **hard if/else discontinuity** at
+P_reactor = REGULATOR_OUTPUT_BAR:
+```python
+if P_reactor > REGULATOR_OUTPUT_BAR:
+    n_dot_regulator = min(demand, sqrt‑limited)   # small flow
+else:
+    n_dot_regulator = demand                       # unlimited flow
+```
+A 10× jump in n_dot_regulator at the boundary broke BDF convergence.
+
+**Fix:** Smooth sigmoid blend between both regimes:
+```python
+blend = 1.0 / (1.0 + np.exp(-(P_reactor - 2.0) * 100.0))
+n_dot_max = n_dot_max_dropout * (1-blend) + n_dot_max_active * blend
+```
+
+### CO₂ Depletion → Negative Pressure
+
+**Symptom:** P_reactor went to −3.38 bar (n_co2_gas < 0) because regulator extracted
+more CO₂ than available.
+
+**Fix:** Clamp n_dot_regulator to available CO₂:
+```python
+n_dot_regulator = min(n_dot_regulator, n_co2_prod + max(0, n_co2_gas) * 10.0)
+```
+
+### Remaining Issues
+
+| Issue | Impact | Status |
+|-------|--------|--------|
+| Vehicle speed 34 m/s | Unrealistic; freewheel applies full 126 N to 5 kg car with no damping during stroke | Open |
+| P_reactor drops below 1.1 bar after ~34 strokes | CO₂ consumption > production; needs drip‑rate tuning | Open |
+| P_exhaust spike (377 bar) at stroke ends | Mitigated with 5 mm volume clamp; ODE stiffness persists | Mitigated |
+
+### Parameter Values at Session End
+
+| Param | Value | Note |
+|-------|-------|------|
+| EXHAUST_FLOW_COEFF | 3.0e‑3 | Adequate; P_exhaust stays ~1 bar mid‑stroke |
+| Friction | 1000 N·s/m | Limits terminal velocity to ~0.07 m/s → ~4 s stroke |
+| Volume clamp | 5 mm | Prevents P_exhaust → ∞ at stroke ends |
+| Regulator blend | sigmoid, width ~0.05 bar | Smooth transition at P_reactor = 2.0 bar |
+| Abort threshold | 1.1 bar | Fires when P_reactor drops too low |
+
+### Stroke Performance (Best Strokes)
+
+- **Stroke time:** ~4.0 s per 30 cm stroke (target: ~5 s)
+- **Terminal velocity:** ~8 cm/s (rightward) → ~6 cm/s as P_reactor drops
+- **P_exhaust mid‑stroke:** ~1.001 bar (throttle handles compression easily)
+- **Strokes completed:** 34 before abort at P_reactor < 1.1 bar
+
+### Next Tuning Steps
+
+1. **Increase drip rate** (VALVE_ORIFICE_AREA_MM2 or CITRIC_ACID_CONCENTRATION_G_PER_L)
+   so CO₂ production exceeds regulator consumption → P_reactor stays above 1.1 bar
+2. **Fix vehicle damping** — apply VEHICLE_MECHANICAL_DAMPING continuously (not just
+   between strokes) to cap top speed at ~1 m/s
+3. **Test closed‑mass model** — return exhaust gas to reactor instead of venting to
+   atmosphere (more realistic for competition)
 
 ---
 

@@ -176,12 +176,15 @@ def chemcar_odes(t, y, direction):
     dV_supply_dt = direction * y[2] * PISTON_AREA_M2  # m³/s, >0 bei Expansion
     if dV_supply_dt > 0:
         n_dot_demand = P_supply * dV_supply_dt * 1e5 / (R_GAS * TEMPERATURE_K)
-        if P_reactor > REGULATOR_OUTPUT_BAR:
-            delta_P_reg = max(0.001, P_reactor - REGULATOR_OUTPUT_BAR)
-            n_dot_max = REGULATOR_FLOW_COEFF * np.sqrt(delta_P_reg) * 1e5 / (R_GAS * TEMPERATURE_K)
-            n_dot_regulator = min(n_dot_demand, n_dot_max)
-        else:
-            n_dot_regulator = n_dot_demand
+        # Smooth blend between dropout (unlimited) and active regulation (sqrt-limited)
+        # using a sigmoid centered at REGULATOR_OUTPUT_BAR (width ~0.05 bar).
+        # Dies vermeidet die ODE-Diskontinuität beim Übergang.
+        delta_P = P_reactor - REGULATOR_OUTPUT_BAR
+        blend = 1.0 / (1.0 + np.exp(-delta_P * 100.0))
+        n_dot_max_dropout = n_dot_demand * 10.0
+        n_dot_max_active = REGULATOR_FLOW_COEFF * np.sqrt(max(0.001, delta_P)) * 1e5 / (R_GAS * TEMPERATURE_K)
+        n_dot_max = n_dot_max_dropout * (1.0 - blend) + n_dot_max_active * blend
+        n_dot_regulator = min(n_dot_demand, n_dot_max)
     else:
         n_dot_regulator = 0.0
 
@@ -246,6 +249,9 @@ def chemcar_odes(t, y, direction):
         n_flow_throttle = 0.0
 
     # --- Ableitungen ---
+    # Regler-Durchfluss begrenzen: nie mehr CO₂ entnehmen als verfügbar
+    n_dot_regulator = min(n_dot_regulator, n_co2_prod + max(0.0, y[5]) * 10.0)
+
     dydt = [
         -drip_mol,                                    # [0] dn_citric/dt
         y[2],                                         # [1] dx_piston/dt = v_piston
