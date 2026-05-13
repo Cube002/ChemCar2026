@@ -100,9 +100,11 @@ DEAD_VOLUME_M = 0.005  # physikalisches Totvolumen an den Zylinderenden
 
 def get_exhaust_pressure(n_exhaust, x_piston, direction):
     if direction > 0:
-        V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        # V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2 #this is unphysical, because the piston keeps moving without the volume decreasing!!! TODO
+        V_exhaust_m3 = (ROD_LENGTH_M - x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
     else:
-        V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        #V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        V_exhaust_m3 = (x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
 
     V_exhaust_L = V_exhaust_m3 * 1000.0
     P_exhaust = n_exhaust * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_exhaust_L
@@ -111,9 +113,11 @@ def get_exhaust_pressure(n_exhaust, x_piston, direction):
 
 def get_exhaust_volume_L(x_piston, direction):
     if direction > 0:
-        V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        # V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        V_exhaust_m3 = (ROD_LENGTH_M - x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
     else:
-        V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        #V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
+        V_exhaust_m3 = (x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
     return V_exhaust_m3 * 1000.0
 
 

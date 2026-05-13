@@ -113,7 +113,7 @@ WHEEL_DIAMETER_M = 0.08           # Raddurchmesser in m (8 cm)
 WHEEL_RADIUS_M = WHEEL_DIAMETER_M / 2.0
 
 # Reibung
-AXLE_FRICTION_TORQUE_NM = 0.05    # Reibungsmoment an jeder Achse (Nm)
+AXLE_FRICTION_TORQUE_NM = 0.005    # Reibungsmoment an jeder Achse (Nm)
 VEHICLE_ROLLING_RESISTANCE = 0.08  # Rollwiderstands-Koeffizient
 AERODYamic_DRAG_COEFF = 0.6       # Luftwiderstandsbeiwert
 WHEEL_CONTACT_AREA_M2 = 0.002     # Kontaktfläche Rad-Boden
@@ -128,7 +128,7 @@ VEHICLE_MECHANICAL_DAMPING = 3000.0  # Mechanische Dämpfung (N·s/m) - begrenzt
 # SIMULATION-PARAMETER
 # ============================================================================
 
-SIMULATION_TIME_MAX = 100.0         # Max. Simulationszeit in Sekunden 
+SIMULATION_TIME_MAX = 60.0*5        # Max. Simulationszeit in Sekunden 
 SIMULATION_DT = 0.001               # Schrittweite für BDF-Adaptivschritt (max)
 SIMULATION_TOL = 1e-6               # Toleranz des Integrators
 
