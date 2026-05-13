@@ -104,11 +104,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             fun=lambda t, y: chemcar_odes(t, y, direction),
             t_span=t_span,
             y0=list(y),
-            method='Radau',
+            method='LSODA',
             events=events,
             rtol=1e-6,
             atol=1e-8,
-            max_step=0.005,
+            max_step=0.01,
         )
         
         # Ergebnisse speichern

@@ -1,0 +1,55 @@
+The physical behavior the user wants is:
+1. Piston approaches end → spring engages (last 2 cm)
+2. Spring starts compressing, but the exhaust chamber pressure is still high from being compressed
+3. The piston slows/stops because: F_pressure is small (P_exhaust ≈ P_supply) AND spring pushes back
+4. Gas bleeds out of exhaust chamber through the throttle
+5. Once P_exhaust drops enough, F_pressure > F_spring, and the piston can continue compressing the spring
+6. This continues until the piston reaches the button (or the spring is fully compressed)
+This is exactly what should happen conceptually, but numerically it's very stiff because:
+- At the end, the exhaust gas must flow through a tiny throttle
+- The exhaust pressure changes rapidly with small volume changes
+- The spring adds additional stiffness
+
+n_exhaust at reversal (1 bar fill, full volume):
+- At reversal from right to left, the piston is at x=0.30 (right end)
+- The NEW exhaust chamber (left side) volume is: y1 * A = 0.30 * 7.0686e-4 = 2.12e-4 m³ = 0.212 L
+- n_exhaust = 1.0 * 0.212 / (0.08314 * 293.15) = 0.212 / 24.37 = 0.0087 mol
+Now if the piston moves left, compressing the exhaust:
+- At x=0.005 (near left end), V_exhaust = 0.005 * A = 3.53e-6 m³ = 0.00353 L
+- P_exhaust = 0.0087 * 0.08314 * 293.15 / 0.00353 = 0.0087 * 24.37 / 0.00353 = 0.212 / 0.00353 = 60 bar!
+That's 60 bar if no gas has escaped! But with the throttle, some gas does escape. With EXHAUST_FLOW_COEFF = 3.0e-5, the flow rate is:
+flow = 3.0e-5 * sqrt(60-1) = 3.0e-5 * 7.68 = 2.3e-4 m³/s
+n_flow = 2.3e-4 * 1e5 / (8.314 * 293.15) = 23 / 2437 = 0.0094 mol/s
+And we have 0.0087 mol total, so it would take about 0.9 seconds to bleed out.
+Meanwhile, the pressure force at 60 bar is:
+F_pressure = direction * (2.0 - 60) * 1e5 * 7.0686e-4 = -58 * 70.686 = -4100 N
+That's a massive force pushing the piston BACK toward the center. With the spring also pushing, it's even more.
+This is the correct physical behavior - the exhaust chamber counter-pressure should oppose the piston motion. But the rapid transition from positive to negative net force creates numerical stiffness.
+
+Key insight: the oscillation at the stroke end happens because P_exhaust spikes too high with the 2mm dead volume. The simple fix is to increase the dead volume slightly.
+With 5mm dead volume (original):
+- V_dead = 0.005 * A = 3.53e-6 m³ = 0.00353 L
+- P_exhaust_max = n * 24.37 / 0.00353 = n * 6900
+- With n=0.0087: P_exhaust_max = 60 bar
+
+But the user says "immediately slow down" — NOT "instantaneously stop." The key words are "not continue moving." The piston doesn't instantly stop — it takes time to decelerate. But during that deceleration, the exhaust chamber is still being compressed (though more slowly).
+So CAN P_exhaust reach 60 bar? Let's see:
+At P_exhaust = 2 bar (equal to P_supply), direction=+1:
+F_pressure = 0
+F_spring = 0 (assuming outside spring zone)
+F_friction = -70 N
+F_net = -70 N
+a = -70/5.5 = -12.7 m/s²
+At v=0.07 m/s: stopping time = 0.07/12.7 = 0.0055 s
+Stopping distance = 0.07²/(2*12.7) = 0.00019 m = 0.19 mm
+During this 0.19 mm of forward travel, the exhaust volume decreases by 0.00019 * A = 1.34e-7 m³.
+If the exhaust volume before deceleration was, say, 0.01 * A = 7.07e-6 m³ (at x = 0.29 m):
+The volume after stopping is 7.07e-6 - 1.34e-7 = 6.94e-6 m³
+The volume ratio is 7.07/6.94 = 1.02, so P_exhaust increases by 2%.
+So if P_exhaust was 2 bar when deceleration started, it reaches about 2.04 bar when the piston stops. NOT 60 bar.
+This confirms the user is RIGHT — 60 bar is NOT physically possible with correct physics.
+So WHY does the simulation produce 60 bar (or fail trying to)?
+The answer must be that the SOLVER is NOT resolving this correctly. Either:
+1. The solver takes too large a step, overshooting the equilibrium point
+2. The Jacobian is wrong, leading to convergence failure
+3. Some numerical artifact creates non-physical state values

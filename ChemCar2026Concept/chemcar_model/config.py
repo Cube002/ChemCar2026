@@ -13,6 +13,7 @@ und den Notizen. Leicht anpassbar für Sensitivitätsanalysen.
 CITRIC_TANK_VOLUME_L = 2.0        # Gesamtvolumen des Edelstahltanks in Litern
 CITRIC_TANK_INITIAL_FILL = 0.9    # Füllfaktor (0-1), 90% gefüllt
 CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # ~1.8 kg Lösung
+TANK_INITIAL_PRESSURE_BAR = 3.0   # Startdruck im Zitronensäure-Tank (bar)
 
 # Zitronensäure-Konzentration in der Lösung (g/L)
 # Aus Notizen: 27g Citronensäure für ~10L CO₂ bei 2 bar
@@ -22,7 +23,6 @@ CITRIC_ACID_MOLAR_MASS = 192.12  # g/mol (C₆H₈O₇)
 # Untere Tank (Edelstahl) - NaHCO₃-Reaktor
 REACTOR_VOLUME_L = 3.0            # Volumen des Reaktors in Litern
 REACTOR_HEADSPACE_RATIO = 0.1     # 10% des Volumens ist Gasraum (Luftvorfüllung)
-TANK_INITIAL_PRESSURE_BAR = 5.0    # Startdruck im Zitronensäure-Tank (bar)
 REACTOR_INITIAL_PRESSURE_BAR = 1.0 # Startdruck im Reaktor (bar) - atmosphärisch
 
 # Natron (NaHCO₃) im Reaktor - im Überschuss
@@ -71,14 +71,21 @@ PISTON_DIAMETER_MM = 30.0         # Kolbendurchmesser in mm (Standard Festo)
 PISTON_AREA_M2 = 3.14159 * (PISTON_DIAMETER_MM / 1000.0)**2 / 4.0
 
 # Feder-Eigenschaften (pro Feder an jedem Ende)
-SPRING_CONSTANT_N_PER_M = 500.0   # Federkonstante in N/m (für 1.9 bar Schwellendruck)
 SPRING_ACTIVE_DISTANCE_M = 0.02   # Feder wirkt in den letzten 2cm des Hubwegs
+SPRING_SMOOTH_WIDTH_M = 0.001    # 1 mm C1-Übergangszone (verhindert Jacobian-Sprung)
+# Federkonstante berechnet aus Schwellendruck: F_spring_max = k * 0.02 = P * A
+# Damit ~1.9 bar nötig sind um Feder ganz zusammenzudrücken
+SPRING_CONSTANT_N_PER_M = (SPRING_PRELOAD_BAR * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
 
 # Drosselventil (Exhaust)
 # Das Drosselventil am Pneumatikzylinder limitiert den Gasausstrom
-# und damit die Stroke-Geschwindigkeit (~5 Sekunden pro Stroke)
+# und damit die Stroke-Geschwindigkeit (Ziel wären ~5 Sekunden pro Stroke)
 # Flow: m_dot ~ C * sqrt(delta_P) — typisch für Durchfluss durch Öffnung
-EXHAUST_FLOW_COEFF = 3.0e-3     # m³/s / sqrt(bar) — für ~5s pro Hub
+# Mit physikalischer Feder (k=6715 N/m) und 5kg Fahrzeug:
+# - Exhaust-Kammer baut Gegendruck auf → natürliche Geschwindigkeitsbegrenzung
+# - Feder+Exhaust bremsen den Kolben sanft an den Hubenden
+# - Keine harten if/else Diskontinuitäten — alles physikalisch über Kraftbilanz
+EXHAUST_FLOW_COEFF = 3.0e-5     # m³/s / sqrt(bar)
 EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 
 # Kolben-Masse

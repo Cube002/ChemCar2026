@@ -96,11 +96,13 @@ def get_reactor_water_volume_L(n_citric_remaining):
     return max(0.0, mass_solution_g * 0.001)
 
 
+DEAD_VOLUME_M = 0.005  # physikalisches Totvolumen an den Zylinderenden
+
 def get_exhaust_pressure(n_exhaust, x_piston, direction):
     if direction > 0:
-        V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, 0.005) * PISTON_AREA_M2
+        V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
     else:
-        V_exhaust_m3 = max(x_piston, 0.005) * PISTON_AREA_M2
+        V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
 
     V_exhaust_L = V_exhaust_m3 * 1000.0
     P_exhaust = n_exhaust * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_exhaust_L
@@ -109,9 +111,9 @@ def get_exhaust_pressure(n_exhaust, x_piston, direction):
 
 def get_exhaust_volume_L(x_piston, direction):
     if direction > 0:
-        V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, 0.005) * PISTON_AREA_M2
+        V_exhaust_m3 = max(ROD_LENGTH_M - x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
     else:
-        V_exhaust_m3 = max(x_piston, 0.005) * PISTON_AREA_M2
+        V_exhaust_m3 = max(x_piston, DEAD_VOLUME_M) * PISTON_AREA_M2
     return V_exhaust_m3 * 1000.0
 
 
@@ -223,16 +225,32 @@ def chemcar_odes(t, y, direction):
         F_pressure = 0.0
 
     # Federkraft (nur nahe den Endpunkten)
+    # C1-glatter Übergang: smoothstep über SPRING_SMOOTH_WIDTH_M verhindert
+    # den Jacobian-Sprung (dF/dx: 0 → -6715), der implizite Solver zerstört.
     # Feder drückt immer in Richtung Zylindermitte:
     #   rechtes Ende (x > 0.28): Feder drückt nach LINKS  → F_spring negativ
     #   linkes Ende (x < 0.02):  Feder drückt nach RECHTS → F_spring positiv
     F_spring = 0.0
-    if y[1] > ROD_LENGTH_M - SPRING_ACTIVE_DISTANCE_M:
-        compression = y[1] - (ROD_LENGTH_M - SPRING_ACTIVE_DISTANCE_M)
-        F_spring = -SPRING_CONSTANT_N_PER_M * compression
-    elif y[1] < SPRING_ACTIVE_DISTANCE_M:
-        compression = SPRING_ACTIVE_DISTANCE_M - y[1]
-        F_spring = SPRING_CONSTANT_N_PER_M * compression
+
+    # Rechte Feder
+    right_engage = ROD_LENGTH_M - SPRING_ACTIVE_DISTANCE_M
+    if y[1] > right_engage:
+        compression = y[1] - right_engage
+        factor = 1.0
+        if y[1] < right_engage + SPRING_SMOOTH_WIDTH_M:
+            t = compression / SPRING_SMOOTH_WIDTH_M
+            factor = t * t * (3 - 2 * t)
+        F_spring = -SPRING_CONSTANT_N_PER_M * compression * factor
+
+    # Linke Feder
+    left_engage = SPRING_ACTIVE_DISTANCE_M
+    if y[1] < left_engage:
+        compression = left_engage - y[1]
+        factor = 1.0
+        if y[1] > left_engage - SPRING_SMOOTH_WIDTH_M:
+            t = compression / SPRING_SMOOTH_WIDTH_M
+            factor = t * t * (3 - 2 * t)
+        F_spring = SPRING_CONSTANT_N_PER_M * compression * factor
 
     # Reibung: Coulomb + viskos
     # Reibung wirkt IMMER entgegen der Bewegungsrichtung
@@ -260,13 +278,14 @@ def chemcar_odes(t, y, direction):
     a_vehicle = get_vehicle_acceleration(y[4], F_drive, F_brake)
 
     # --- Auslass-Drosselventil ---
+    # sqrt(delta_P) hat eine singuläre Ableitung bei delta_P=0 (d(sqrt)/dP → ∞).
+    # Fix: np.maximum(delta_P, 0) + EPS — verhindert negative sqrt-Argumente
+    # und gibt endliche Ableitung. Der winzige EPS-Beitrag (1e-12) ändert
+    # den Durchfluss im Betriebsbereich (delta_P > 0.01 bar) um < 1e-8 %.
     P_ambient = 1.0
     delta_P_exhaust = P_exhaust - P_ambient
-    if delta_P_exhaust > 0:
-        flow_exhaust_m3_s = EXHAUST_FLOW_COEFF * np.sqrt(delta_P_exhaust)
-        n_flow_throttle = flow_exhaust_m3_s * 1e5 / (R_GAS * TEMPERATURE_K)
-    else:
-        n_flow_throttle = 0.0
+    flow_safe = EXHAUST_FLOW_COEFF * np.sqrt(np.maximum(delta_P_exhaust, 0.0) + 1e-12)
+    n_flow_throttle = flow_safe * 1e5 / (R_GAS * TEMPERATURE_K)
 
     # --- Ableitungen ---
     # Regler-Durchfluss begrenzen: nie mehr CO₂ entnehmen als verfügbar
