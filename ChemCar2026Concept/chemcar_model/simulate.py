@@ -40,7 +40,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from config import *
-from odesystem import chemcar_odes, get_initial_state, piston_at_end_forward, piston_at_end_reverse, citric_exhausted, get_exhaust_volume_L
+from odesystem import chemcar_odes, get_initial_state, piston_at_end_forward, piston_at_end_reverse, citric_exhausted, get_exhaust_volume_L, get_reactor_pressure, get_reactor_headspace_L
 from plotting import plot_results
 
 
@@ -97,8 +97,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             events = [piston_at_end_forward, citric_exhausted] if direction > 0 else [piston_at_end_reverse, citric_exhausted]
         event_forward = direction > 0
         
-        V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-        P_reactor_pre = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
+        P_reactor_pre = get_reactor_pressure(y[5], y[7], y[0])
         P_exhaust_pre = y[8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y[1], direction), 0.001)
         print(f"  [DBG] Hub {stroke_count+1}: dir={direction:+d}, x={y[1]*100:.2f}cm, v={y[2]*100:.4f}cm/s, P_react={P_reactor_pre:.2f}bar, P_exh={P_exhaust_pre:.2f}bar, n_exh={y[8]:.6f}mol")
         
@@ -134,7 +133,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
-            P_react_event = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+            P_react_event = get_reactor_pressure(y[5], y[7], y[0])
             P_supply_event = REGULATOR_OUTPUT_BAR if P_react_event > REGULATOR_OUTPUT_BAR else P_react_event
             direction = -1
             V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
@@ -147,7 +146,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
-            P_react_event = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+            P_react_event = get_reactor_pressure(y[5], y[7], y[0])
             P_supply_event = REGULATOR_OUTPUT_BAR if P_react_event > REGULATOR_OUTPUT_BAR else P_react_event
             direction = +1
             V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
@@ -155,11 +154,11 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             stroke_count += 1
             print(f"  Stroke {stroke_count}: Kolben -> RECHTS (x = {y[1]*100:.1f} cm)")
             
-        elif sol.t_events[1].size > 0:
+        elif not citric_depleted and len(sol.t_events) > 1 and sol.t_events[1].size > 0:
             y = sol.y[:, -1].copy()
             t = sol.t[-1]
             t_global = t
-            P_react_now = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+            P_react_now = get_reactor_pressure(y[5], y[7], y[0])
             citric_remaining = y[0] * CITRIC_ACID_MOLAR_MASS
             print(f"\n  [INFO] Zitronensäure aufgebraucht! Rest-Druck: {P_react_now:.2f} bar — treibt Kolben weiter.")
             print(f"  Rest: {citric_remaining:.4f} g")
@@ -171,7 +170,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
                 y = sol.y[:, -1].copy()
                 t = sol.t[-1]
                 t_global = t
-                P_react_event = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+                P_react_event = get_reactor_pressure(y[5], y[7], y[0])
                 P_supply_event = REGULATOR_OUTPUT_BAR if P_react_event > REGULATOR_OUTPUT_BAR else P_react_event
                 direction *= -1
                 V_new_exhaust_L = get_exhaust_volume_L(y[1], direction)
@@ -198,8 +197,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             break
         
         # Stopp: Reaktor-Druck zu niedrig für Feder-Vorspannung
-        V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-        P_current = (y[5] + y[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace if V_headspace > 0 else 0
+        P_current = get_reactor_pressure(y[5], y[7], y[0])
         
         if P_current < SPRING_PRELOAD_BAR:
             print(f"\n  [ENDE] Reaktor-Druck ({P_current:.2f} bar) unter Feder-Schwelle ({SPRING_PRELOAD_BAR} bar)")
@@ -218,7 +216,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     
     # --- Zusammenfassung ---
     final = y_all_concat[-1]
-    P_final = (final[5] + final[7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / (REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO)
+    P_final = get_reactor_pressure(final[5], final[7], final[0])
     
     print(f"\n  Simulation beendet nach {len(t_all):,} Zeitschritten.")
     print(f"\n  === ERGEBNISZUSAMMENFASSUNG ===")
@@ -233,7 +231,8 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     # Theoretischer Vergleich (inkl. Tank-Gas-Nachströmung)
     theoretical_co2_mol = y_all_concat[0, 0] * STOICH_CO2_PER_CITRIC + y_all_concat[0, 9]
     theoretical_volume_L = theoretical_co2_mol * GAS_CONSTANT_BAR_L * TEMPERATURE_K / REGULATOR_OUTPUT_BAR
-    theoretical_distance = theoretical_co2_mol * 0.157
+    liters_per_meter = PISTON_AREA_M2 * 1000.0
+    theoretical_distance = theoretical_volume_L / liters_per_meter
     
     print(f"\n  [THEORETISCH] (ohne Verluste, alle Edukte verbraucht)")
     print(f"  Aus Citric-Reaktion: ~{y_all_concat[0, 0] * STOICH_CO2_PER_CITRIC:.2f} mol")
@@ -241,6 +240,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     print(f"  Theoretisches CO2:   ~{theoretical_co2_mol:.2f} mol")
     print(f"  Theoretisches Vol.:   ~{theoretical_volume_L:.1f} L bei {REGULATOR_OUTPUT_BAR} bar")
     print(f"  Theoretische Distanz: ~{theoretical_distance:.1f} m")
+    print(f"  (= {theoretical_distance / ROD_LENGTH_M:.0f} Hübe a 30cm)")
     
     print("=" * 65)
     
@@ -260,8 +260,9 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
 
 def save_results(t, y, direction_at_t, filename='chemcar_results'):
     """Speichert Ergebnisse als .npz und .csv."""
-    V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-    P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
+    P_reactor = np.zeros(len(t))
+    for i in range(len(t)):
+        P_reactor[i] = get_reactor_pressure(y[i, 5], y[i, 7], y[i, 0])
     
     P_exhaust = np.zeros(len(t))
     for i in range(len(t)):

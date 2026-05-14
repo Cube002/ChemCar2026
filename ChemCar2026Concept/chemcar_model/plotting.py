@@ -13,30 +13,30 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from config import *
-from odesystem import get_exhaust_volume_L, get_tank_pressure, get_drip_rate_mol_per_s
+from odesystem import get_exhaust_volume_L, get_tank_pressure, get_drip_rate_mol_per_s, get_reactor_pressure, get_reactor_headspace_L
 
 
 def compute_derived(t, y, direction_at_t=None):
-    V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
-    P_reactor = (y[:, 5] + y[:, 7]) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
-
     if direction_at_t is not None:
         direction_arr = np.array(direction_at_t)
     else:
         direction_arr = np.where(y[:, 2] >= 0, 1, -1)
+
+    P_reactor = np.zeros(len(t))
+    P_supply = np.zeros(len(t))
+    for i in range(len(t)):
+        P_reactor[i] = get_reactor_pressure(y[i, 5], y[i, 7], y[i, 0])
+        P_supply[i] = min(P_reactor[i], REGULATOR_OUTPUT_BAR)
 
     P_exhaust = np.zeros(len(t))
     for i in range(len(t)):
         V = max(get_exhaust_volume_L(y[i, 1], direction_arr[i]), 0.001)
         P_exhaust[i] = y[i, 8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V
 
-    P_supply = np.minimum(P_reactor, REGULATOR_OUTPUT_BAR)
-
-    mass_fraction_initial = (CITRIC_ACID_CONCENTRATION_G_PER_L * CITRIC_TANK_VOLUME_L) / (CITRIC_SOLUTION_MASS_KG * 1000.0)
     P_tank = np.zeros(len(t))
     for i in range(len(t)):
         if y[i, 0] > 0:
-            m_solution_kg = (y[i, 0] * CITRIC_ACID_MOLAR_MASS / 1000.0) / mass_fraction_initial
+            m_solution_kg = (y[i, 0] * CITRIC_ACID_MOLAR_MASS / 1000.0) / CITRIC_MASS_FRACTION
             P_tank[i] = get_tank_pressure(m_solution_kg)
         else:
             P_tank[i] = 1.0

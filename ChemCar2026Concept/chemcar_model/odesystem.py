@@ -41,8 +41,24 @@ from config import *
 # ============================================================================
 
 
-def get_reactor_pressure(n_co2, n_air):
-    V_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
+def get_reactor_headspace_L(n_citric_remaining):
+    V_initial_headspace = REACTOR_VOLUME_L * REACTOR_HEADSPACE_RATIO
+    n_citric_initial = (CITRIC_SOLUTION_MASS_KG * CITRIC_MASS_FRACTION) * 1000.0 / CITRIC_ACID_MOLAR_MASS
+    n_consumed = max(0.0, n_citric_initial - n_citric_remaining)
+    V_additional_L = 0.0
+    if n_consumed > 0:
+        mass_citric_g = n_consumed * CITRIC_ACID_MOLAR_MASS
+        mass_solution_g = mass_citric_g / CITRIC_MASS_FRACTION
+        V_solution_added_L = mass_solution_g / 1000.0
+        V_water_reaction_L = n_consumed * 3.0 * H2O_MOLAR_MASS / 1000.0
+        V_additional_L = V_solution_added_L + V_water_reaction_L
+    V_headspace = V_initial_headspace - V_additional_L
+    V_headspace = max(V_headspace, 0.01)
+    return V_headspace
+
+
+def get_reactor_pressure(n_co2, n_air, n_citric=0.0):
+    V_headspace = get_reactor_headspace_L(n_citric)
     if V_headspace <= 0.001:
         return MAX_PRESSURE_BAR
     P = (n_co2 + n_air) * GAS_CONSTANT_BAR_L * TEMPERATURE_K / V_headspace
@@ -87,10 +103,14 @@ def get_co2_dissolved(P_bar, water_volume_L=1.0):
 
 def get_reactor_water_volume_L(n_citric_remaining):
     n_citric_initial = (CITRIC_SOLUTION_MASS_KG * CITRIC_MASS_FRACTION) * 1000.0 / CITRIC_ACID_MOLAR_MASS
-    n_consumed = n_citric_initial - n_citric_remaining
+    n_consumed = max(0.0, n_citric_initial - n_citric_remaining)
+    if n_consumed <= 0:
+        return 0.0
     mass_citric_g = n_consumed * CITRIC_ACID_MOLAR_MASS
     mass_solution_g = mass_citric_g / CITRIC_MASS_FRACTION
-    return max(0.0, mass_solution_g * 0.001)
+    V_solution_L = mass_solution_g * 0.001
+    V_water_L = n_consumed * 3.0 * H2O_MOLAR_MASS / 1000.0
+    return V_solution_L + V_water_L
 
 
 DEAD_VOLUME_M = 0.005  # Totvolumen in Schläuchen/Ventilen (additiv, nicht als Stopp)
@@ -135,7 +155,7 @@ def chemcar_odes(t, y, direction):
     P_supply kehrt sich die Kraft um und der Kolben wird abgebremst.
     """
     # --- Reaktor-Druck ---
-    P_reactor = get_reactor_pressure(y[5], y[7])
+    P_reactor = get_reactor_pressure(y[5], y[7], y[0])
 
     # --- Tropfrate ---
     drip_mol = get_drip_rate_mol_per_s(y[0], P_reactor)

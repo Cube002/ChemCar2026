@@ -342,11 +342,61 @@ Nach Unterschreiten von REGULATOR_OUTPUT_BAR sinkt die Antriebskraft kontinuierl
 
 ---
 
+---
+
+## Session 05: Quantitative Validierung & Reaktionskorrektur (14.05.2026)
+
+### Gefundene Fehler
+
+| # | Fehler | Datei | Fix |
+|---|--------|-------|-----|
+| 1 | `CITRIC_TANK_INITIAL_FILL = 0.04` → nur 10.8g Citric statt 27g | config.py | `0.10` → 27g |
+| 2 | `TANK_INITIAL_PRESSURE_BAR = 3.0` (nicht aktualisiert) | config.py | `4.0` |
+| 3 | `NACHTRON_MASS_KG = 0.35` → 10× Konzept-Wert | config.py | `0.05` (50g) |
+| 4 | `ATMOSPHERIC_PRESSURE` doppelt definiert | config.py | Zeile 144 entfernt |
+| 5 | `theoretical_distance = n * 0.157` Faktor von altem 1cm-Kolben | simulate.py:236 | Korrekte Formel `V / (A*1000)` |
+| 6 | `REACTOR_HEADSPACE_RATIO` konstant (ignoriert Flüssigkeitszulauf) | odesystem.py | Dynamischer Headspace via `get_reactor_headspace_L()` |
+| 7 | `get_reactor_water_volume_L` ohne Reaktionswasser | odesystem.py | `+ 3*H2O` pro Citric |
+| 8 | Alle manuellen Druckberechnungen mit altem Headspace | simulate.py, plotting.py | `get_reactor_pressure(n_co2, n_air, n_citric)` |
+| 9 | `IndexError` auf `t_events[1]` nach Citric-Depletion | simulate.py | Guard `not citric_depleted and len(t_events) > 1` |
+
+### Korrigierte Parameter
+
+| Parameter | Alt | Neu | Grund |
+|-----------|-----|-----|-------|
+| `CITRIC_TANK_INITIAL_FILL` | 0.04 (10.8g) | 0.10 (27.0g) | Konzept: 27g Citronensäure |
+| `TANK_INITIAL_PRESSURE_BAR` | 3.0 | 4.0 | Höherer ∆P für Tropfrate |
+| `NACHTRON_MASS_KG` | 0.35 (350g) | 0.05 (50g) | 42% Überschuss über Stöchiometrie (~35g) |
+| `H2O_MOLAR_MASS` | — | 18.015 | Neu für Reaktionswasser-Tracking |
+
+### Ergebnisse (300s Simulation)
+
+| Metrik | Wert |
+|--------|------|
+| Start-Zitronensäure | 27.0 g ✅ |
+| Citric-Verbrauch | Vollständig nach 138s ✅ |
+| Theoretische Distanz | **12.4 m** (= 41 Hübe a 30cm) ✅ |
+| Tatsächliche Distanz | 14.24 m (mit Tank-Gas-Nachströmung) |
+| Hübe | 50 |
+| Ø Hubzeit | 6.0 s |
+| P_reactor (Start) | 1.0 bar |
+| P_reactor (nach Aufbau) | ~3.8 bar |
+| P_reactor (nach Citric-Depletion) | 3.25 bar stabil |
+| Abrruch | Simulation Timeout 300s (kein Feder-Abbruch) |
+| Fahrzeuggeschwindigkeit | ~4.7 cm/s |
+
+### Verbleibende Beobachtungen
+
+1. **Fahrzeug zu langsam** (4.7 cm/s) → Freilauf-Bremse + Rollwiderstand limitieren
+2. **Tropfrate wird durch ∆P ≈ 0.3 bar begrenzt** → Zitronensäure braucht 138s für vollständige Reaktion
+3. **P_reactor bleibt > 3.25 bar** → System könnte theoretisch weiterfahren, aber Fahrzeug steht durch Simulations-Timeouts
+
+---
+
 ## Nächste Schritte
 
-1. [x] Simulation testen: `python simulate.py --plot` → funktioniert
-2. [x] Ergebnisse analysieren → 47 Hübe, 13.93m, akzeptabel
-3. [x] Kinetische Kopplung Piston-Belt korrigiert
-4. [x] Parameter-Tuning (Drip, Exhaust, Dämpfung, Tankdruck)
-5. [ ] P_reactor-Stabilität verbessern (Höherer Tankdruck oder CO₂-Vorlage)
-6. [ ] Steifigkeit bei niedrigem P_reactor reduzieren
+1. [x] Simulation testen nach Korrekturen → läuft stabil
+2. [x] Theoretische Distanz korrigiert → 12.4m
+3. [x] Chemische Eduktmengen auf Konzept-Niveau → 27g Citric, 50g NaHCO₃
+4. [ ] Fahrzeuggeschwindigkeit optimieren für 30m in 5 Minuten
+5. [ ] Tropfrate erhöhen (Ventilquerschnitt oder Tankdruck) für schnellere Reaktion

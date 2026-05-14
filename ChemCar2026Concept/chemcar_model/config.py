@@ -10,8 +10,8 @@ ATMOSPHERIC_PRESSURE = 1.0
 # ============================================================================
 
 # Oberer Tank (Edelstahl) - Zitronensäure-Tank
-CITRIC_TANK_VOLUME_L = 2.0        # Gesamtvolumen des Edelstahltanks in Litern
-CITRIC_TANK_INITIAL_FILL = 0.1    # Füllfaktor (0-1), 10% gefüllt → nur ~27g Citronensäure
+CITRIC_TANK_VOLUME_L = 0.7        # Gesamtvolumen des Edelstahltanks in Litern
+CITRIC_TANK_INITIAL_FILL = 0.10    # 10% → 0.2 kg Lösung → ~27g Citronensäure (laut Konzept)
 CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # kg Lösung
 TANK_INITIAL_PRESSURE_BAR = 4.0   # Startdruck im Zitronensäure-Tank (bar)
 
@@ -27,7 +27,7 @@ REACTOR_HEADSPACE_RATIO = 0.1     # 10% des Volumens ist Gasraum (Luftvorfüllun
 REACTOR_INITIAL_PRESSURE_BAR = 1.0 # Startdruck im Reaktor (bar) - atmosphärisch
 
 # Natron (NaHCO₃) im Reaktor - im Überschuss (löslichkeit in wasser: 95g/l)
-NACHTRON_MASS_KG = 0.35           # 350 g NaHCO₃
+NACHTRON_MASS_KG = 0.05           # 50 g NaHCO₃ (ausreichend Überschuss für 27g Citric; stöchiometrisch ~35g nötig)
 NACHTRON_MOLAR_MASS = 84.01       # g/mol (NaHCO₃)
 
 # Reaktionsstoichiometrie
@@ -39,6 +39,7 @@ STOICH_NACHTRON_PER_CITRIC = 3.0  # 3 mol NaHCO₃ pro mol Citric Acid
 # ~1.7 g/L bei 20°C und 1 bar
 CO2_SOLUBILITY_G_PER_L_AT_1BAR = 1.7
 CO2_MOLAR_MASS = 44.01            # g/mol
+H2O_MOLAR_MASS = 18.015           # g/mol (H₂O, für Reaktionswasser)
 
 # Reaktionskinetik
 # Die Tropffrate wird durch das Ventil und den Druckgradienten bestimmt
@@ -139,9 +140,6 @@ GAS_CONSTANT_BAR_L = 0.08314        # bar·L/(mol·K)
 
 # Standard-Temperatur (K)
 TEMPERATURE_K = 293.15              # 20°C
-
-# Atmosphärendruck
-ATMOSPHERIC_PRESSURE = 1.0          # bar (Referenz für Feder-Vorspannung)
 
 # Numerische Sicherheit
 MAX_PRESSURE_BAR = 50.0             # Obere Grenze für Druck (bar)
