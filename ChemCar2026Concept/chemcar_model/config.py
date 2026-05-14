@@ -10,10 +10,10 @@ ATMOSPHERIC_PRESSURE = 1.0
 # ============================================================================
 
 # Oberer Tank (Edelstahl) - Zitronensäure-Tank
-CITRIC_TANK_VOLUME_L = 0.7        # Gesamtvolumen des Edelstahltanks in Litern
-CITRIC_TANK_INITIAL_FILL = 0.10    # 10% → 0.2 kg Lösung → ~27g Citronensäure (laut Konzept)
+CITRIC_TANK_VOLUME_L = 1        # Gesamtvolumen des Edelstahltanks in Litern
+CITRIC_TANK_INITIAL_FILL = 0.20    # 10% → 0.2 kg Lösung → ~27g Citronensäure (laut Konzept)
 CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # kg Lösung
-TANK_INITIAL_PRESSURE_BAR = 4.0   # Startdruck im Zitronensäure-Tank (bar)
+TANK_INITIAL_PRESSURE_BAR = 3.0   # Startdruck im Zitronensäure-Tank (bar)
 
 # Zitronensäure-Konzentration in der Lösung (g/L)
 CITRIC_ACID_CONCENTRATION_G_PER_L = 135   # g/L der Lösung
@@ -58,18 +58,18 @@ REGULATOR_FLOW_COEFF = 5e-4       # m³/s / sqrt(bar) — Flow durch Regler (lim
 REGULATOR_INACTIVE_THRESHOLD_BAR = 1.0  # Unter diesem Druck regelt der Minderer nicht
 
 # Feder-Schwelle am Kolben
-SPRING_PRELOAD_BAR = 1.1         # Mindestdruck um Feder zu komprimieren (bar)
+SPRING_PRELOAD_BAR = 1.2         # Mindestdruck um Feder zu komprimieren (bar)
 
 # Überdruckventil (Safety Relief Valve)
 RELIEF_VALVE_SET_BAR = 4.4        # 1.1 * 4 bar max operating pressure
 RELIEF_VALVE_FLOW_COEFF = 0.01    # Flow-Koeffizient für Druckentlastung
 
 # ============================================================================
-# PNEUMATIK-ZYLINDER (Festo)
+# PNEUMATIK-ZYLINDER (RMS10X400)
 # ============================================================================
 
-ROD_LENGTH_M = 0.30               # Hubweg in Metern (30 cm)
-PISTON_DIAMETER_MM = 30.0         # Kolbendurchmesser in mm (Standard Festo)
+ROD_LENGTH_M = 0.40               # Hubweg in Metern (40 cm)
+PISTON_DIAMETER_MM = 30.0         # Kolbendurchmesser in mm (RMS10X400) # es sollten 10mm sein.
 PISTON_AREA_M2 = 3.14159 * (PISTON_DIAMETER_MM / 1000.0)**2 / 4.0
 
 # Feder-Eigenschaften (pro Feder an jedem Ende)
@@ -130,7 +130,7 @@ VEHICLE_MECHANICAL_DAMPING = 500.0  # Mechanische Dämpfung (N·s/m)
 # SIMULATION-PARAMETER
 # ============================================================================
 
-SIMULATION_TIME_MAX = 60.0*5        # Max. Simulationszeit in Sekunden 
+SIMULATION_TIME_MAX = 60.0*3        # Max. Simulationszeit in Sekunden 
 SIMULATION_DT = 0.001               # Schrittweite für BDF-Adaptivschritt (max)
 SIMULATION_TOL = 1e-6               # Toleranz des Integrators
 
