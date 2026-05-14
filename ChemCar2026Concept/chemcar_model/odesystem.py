@@ -113,8 +113,6 @@ def get_reactor_water_volume_L(n_citric_remaining):
     return V_solution_L + V_water_L
 
 
-DEAD_VOLUME_M = 0.005  # Totvolumen in Schläuchen/Ventilen (additiv, nicht als Stopp)
-
 def get_exhaust_volume_L(x_piston, direction):
     if direction > 0:
         V_exhaust_m3 = (ROD_LENGTH_M - x_piston + DEAD_VOLUME_M) * PISTON_AREA_M2
@@ -209,6 +207,7 @@ def chemcar_odes(t, y, direction):
     n_co2_relief = 0.0
     if P_reactor > RELIEF_VALVE_SET_BAR:
         n_co2_relief = (P_reactor - RELIEF_VALVE_SET_BAR) * RELIEF_VALVE_FLOW_COEFF * 1e5 / (R_GAS * TEMPERATURE_K)
+        n_co2_relief = min(n_co2_relief, max(0.0, y[5]) * 10.0)
 
     # --- Auslass-Kammer ---
     P_exhaust = get_exhaust_pressure(y[8], y[1], direction)
@@ -260,7 +259,7 @@ def chemcar_odes(t, y, direction):
     # Reibung: Coulomb + viskos
     # Reibung wirkt IMMER entgegen der Bewegungsrichtung
     F_friction_coulomb = AXLE_FRICTION_TORQUE_NM * 2 / WHEEL_RADIUS_M
-    F_friction_viscous = 1000.0 * y[2]
+    F_friction_viscous = PISTON_VISCOUS_FRICTION * y[2]
 
     if abs(y[2]) > 1e-8:
         F_friction = -F_friction_coulomb * np.sign(y[2]) - F_friction_viscous

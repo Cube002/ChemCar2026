@@ -37,6 +37,7 @@ import numpy as np
 from scipy import integrate
 import os
 import sys
+import warnings
 
 sys.path.insert(0, os.path.dirname(__file__))
 from config import *
@@ -101,19 +102,39 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
         P_exhaust_pre = y[8] * GAS_CONSTANT_BAR_L * TEMPERATURE_K / max(get_exhaust_volume_L(y[1], direction), 0.001)
         print(f"  [DBG] Hub {stroke_count+1}: dir={direction:+d}, x={y[1]*100:.2f}cm, v={y[2]*100:.4f}cm/s, P_react={P_reactor_pre:.2f}bar, P_exh={P_exhaust_pre:.2f}bar, n_exh={y[8]:.6f}mol")
         
-        # Integration
+        # Integration mit Fallback: BDF → Radau → LSODA
         t_span = (t, min(t + 20000.0, t_max))
         
-        sol = integrate.solve_ivp(
-            fun=lambda t, y: chemcar_odes(t, y, direction),
-            t_span=t_span,
-            y0=list(y),
-            method='LSODA',
-            events=events,
-            rtol=1e-6,
-            atol=1e-8,
-            max_step=0.01,
-        )
+        solver_configs = [
+            {'method': 'BDF',   'rtol': 1e-6, 'atol': 1e-8, 'max_step': 0.01},
+            {'method': 'Radau', 'rtol': 1e-5, 'atol': 1e-7, 'max_step': 0.05},
+            {'method': 'LSODA', 'rtol': 1e-5, 'atol': 1e-7, 'max_step': 0.01},
+        ]
+        
+        sol = None
+        for cfg in solver_configs:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                sol = integrate.solve_ivp(
+                    fun=lambda t, y: chemcar_odes(t, y, direction),
+                    t_span=t_span,
+                    y0=list(y),
+                    events=events,
+                    **cfg,
+                )
+            if sol.status != -1:
+                break
+        # If ALL solvers failed, retry BDF with very loose tolerance
+        if sol.status == -1:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)
+                sol = integrate.solve_ivp(
+                    fun=lambda t, y: chemcar_odes(t, y, direction),
+                    t_span=t_span,
+                    y0=list(y),
+                    method='BDF', events=events,
+                    rtol=1e-3, atol=1e-4, max_step=0.1,
+                )
         
         # Ergebnisse speichern
         if sol.t.size > 1:
@@ -191,9 +212,9 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             print(f"\n  [WARN] Fahrzeuggeschwindigkeit negativ ({y[4]:.2f} m/s) — Simulation abgebrochen.")
             break
         
-        # Stopp: wenn Zitronensäure verbraucht UND Fahrzeug steht (ausgerollt)
-        if citric_depleted and abs(y[4]) < 0.01:
-            print(f"\n  [ENDE] Zitronensäure/Tankdruck verbraucht, Fahrzeug steht. {stroke_count} Hübe abgeschlossen.")
+        # Stopp: wenn Zitronensäure verbraucht UND Kolben hängt fest (sehr langsam über ganze Strecke)
+        if citric_depleted and abs(y[2]) < 0.001 and abs(y[4]) < 0.001:
+            print(f"\n  [ENDE] Zitronensäure/Tankdruck verbraucht, Kolben & Fahrzeug stehen. {stroke_count} Hübe abgeschlossen.")
             break
         
         # Stopp: Reaktor-Druck zu niedrig für Feder-Vorspannung
@@ -203,6 +224,14 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
             print(f"\n  [ENDE] Reaktor-Druck ({P_current:.2f} bar) unter Feder-Schwelle ({SPRING_PRELOAD_BAR} bar)")
             print(f"  Kolben kann Feder nicht mehr überwinden. {stroke_count} Hübe abgeschlossen.")
             break
+    
+    # --- Ende-Grund melden (falls kein break gefeuert hat) ---
+    if t_global >= t_max:
+        P_curr = get_reactor_pressure(y[5], y[7], y[0])
+        print(f"\n  [ENDE] Zeitlimit ({t_max:.0f}s) erreicht. Druck: {P_curr:.2f} bar, {y[0]*CITRIC_ACID_MOLAR_MASS:.1f}g Citric übrig.")
+        print(f"  {stroke_count} Hübe abgeschlossen.")
+    elif stroke_count >= max_strokes:
+        print(f"\n  [ENDE] Maximalhübe ({max_strokes}) erreicht.")
     
     # --- Ergebnis zusammenfuegen ---
     if y_all:
@@ -240,7 +269,7 @@ def simulate(t_max=SIMULATION_TIME_MAX, plot=False):
     print(f"  Theoretisches CO2:   ~{theoretical_co2_mol:.2f} mol")
     print(f"  Theoretisches Vol.:   ~{theoretical_volume_L:.1f} L bei {REGULATOR_OUTPUT_BAR} bar")
     print(f"  Theoretische Distanz: ~{theoretical_distance:.1f} m")
-    print(f"  (= {theoretical_distance / ROD_LENGTH_M:.0f} Hübe a 30cm)")
+    print(f"  (= {theoretical_distance / ROD_LENGTH_M:.0f} Hübe a {ROD_LENGTH_M*100:.0f}cm)")
     
     print("=" * 65)
     

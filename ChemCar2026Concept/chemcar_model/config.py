@@ -11,7 +11,7 @@ ATMOSPHERIC_PRESSURE = 1.0
 
 # Oberer Tank (Edelstahl) - Zitronensäure-Tank
 CITRIC_TANK_VOLUME_L = 1        # Gesamtvolumen des Edelstahltanks in Litern
-CITRIC_TANK_INITIAL_FILL = 0.20    # 10% → 0.2 kg Lösung → ~27g Citronensäure (laut Konzept)
+CITRIC_TANK_INITIAL_FILL = 0.05    # 
 CITRIC_SOLUTION_MASS_KG = CITRIC_TANK_VOLUME_L * 1.0 * CITRIC_TANK_INITIAL_FILL  # kg Lösung
 TANK_INITIAL_PRESSURE_BAR = 3.0   # Startdruck im Zitronensäure-Tank (bar)
 
@@ -69,7 +69,7 @@ RELIEF_VALVE_FLOW_COEFF = 0.01    # Flow-Koeffizient für Druckentlastung
 # ============================================================================
 
 ROD_LENGTH_M = 0.40               # Hubweg in Metern (40 cm)
-PISTON_DIAMETER_MM = 30.0         # Kolbendurchmesser in mm (RMS10X400) # es sollten 10mm sein.
+PISTON_DIAMETER_MM = 10.0         # Kolbendurchmesser in mm (RMS10X400)
 PISTON_AREA_M2 = 3.14159 * (PISTON_DIAMETER_MM / 1000.0)**2 / 4.0
 
 # Feder-Eigenschaften (pro Feder an jedem Ende)
@@ -79,6 +79,9 @@ SPRING_SMOOTH_WIDTH_M = 0.001    # 1 mm C1-Übergangszone (verhindert Jacobian-S
 # Damit ~1.9 bar nötig sind um Feder ganz zusammenzudrücken
 SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR - ATMOSPHERIC_PRESSURE) * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
 
+# Totvolumen in Schläuchen/Ventilen (additiv, verhindert P_exhaust → ∞ am Hubende)
+DEAD_VOLUME_M = 0.020            # Meter äquivalenter Totraum (20mm für 10mm-Kolben)
+
 # Drosselventil (Exhaust)
 # Das Drosselventil am Pneumatikzylinder limitiert den Gasausstrom
 # und damit die Stroke-Geschwindigkeit (Ziel wären ~5 Sekunden pro Stroke)
@@ -87,11 +90,12 @@ SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR - ATMOSPHERIC_PRESSURE) * 1e5 * P
 # - Exhaust-Kammer baut Gegendruck auf → natürliche Geschwindigkeitsbegrenzung
 # - Feder+Exhaust bremsen den Kolben sanft an den Hubenden
 # - Keine harten if/else Diskontinuitäten — alles physikalisch über Kraftbilanz
-EXHAUST_FLOW_COEFF = 1.5e-4     # m³/s / sqrt(bar)
+EXHAUST_FLOW_COEFF = 1.7e-5     # m³/s / sqrt(bar) — skalieren mit A (10mm/30mm = 1/9)
 EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 
 # Kolben-Masse
 PISTON_MASS_KG = 0.5              # Masse des beweglichen Teils
+PISTON_VISCOUS_FRICTION = 300     # N·s/m — viskose Reibung (10mm-Kolben, dämpft Endanschlag)
 
 # Effektive beschleunigte Masse (Kolben + äquivalentes Fahrzeug über Riemenübersetzung)
 # Da der Kolben über Riemen und Freiläufe das Fahrzeug beschleunigt, muss die Fahrzeugmasse
@@ -103,7 +107,7 @@ PISTON_MASS_KG = 0.5              # Masse des beweglichen Teils
 # Riemen-Übersetzung
 # 1:1 - jede Kolbenbewegung wird direkt auf die Räder übertragen
 BELT_TO_WHEEL_RATIO = 1.0
-BELT_STIFFNESS = 500.0            # N·s/m² — Kopplungssteifigkeit Riemen (pro velocity-diff * mass)
+BELT_STIFFNESS = 60.0             # N·s/m² — Kopplungssteifigkeit Riemen (skaliert mit A ~1/9)
 
 # Fahrzeugparameter
 VEHICLE_MASS_KG = 5.0             # Gesamtmasse des Fahrzeugs
@@ -117,14 +121,14 @@ WHEEL_RADIUS_M = WHEEL_DIAMETER_M / 2.0
 
 # Reibung
 AXLE_FRICTION_TORQUE_NM = 0.005    # Reibungsmoment an jeder Achse (Nm)
-VEHICLE_ROLLING_RESISTANCE = 0.08  # Rollwiderstands-Koeffizient
+VEHICLE_ROLLING_RESISTANCE = 0.05  # Rollwiderstands-Koeffizient (abgeschwächt für 10mm-Kolben)
 AERODYamic_DRAG_COEFF = 0.6       # Luftwiderstandsbeiwert
 WHEEL_CONTACT_AREA_M2 = 0.002     # Kontaktfläche Rad-Boden
 
 # Freilauf-Bremse (wenn Kolben steht = kein Antrieb)
 # Modelliert Lagerreibung, Getriebeverluste, mechanische Dämpfung
-FREEWHEEL_BRAKE_FORCE_N = 10.0     # Äquivalente Bremskraft am Rad im Freilauf (N)
-VEHICLE_MECHANICAL_DAMPING = 500.0  # Mechanische Dämpfung (N·s/m)
+FREEWHEEL_BRAKE_FORCE_N = 1.5      # Äquivalente Bremskraft am Rad im Freilauf (N) — skaliert mit A
+VEHICLE_MECHANICAL_DAMPING = 60.0   # Mechanische Dämpfung (N·s/m) — skaliert mit A
 
 # ============================================================================
 # SIMULATION-PARAMETER

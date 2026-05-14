@@ -393,10 +393,55 @@ Nach Unterschreiten von REGULATOR_OUTPUT_BAR sinkt die Antriebskraft kontinuierl
 
 ---
 
+---
+
+## Session 06: 10mm-Kolben RMS10X400 & Solver-Stabilität (14.05.2026)
+
+### Änderungen für 10mm-Kolben
+
+| Parameter | Alt (30mm) | Neu (10mm) | Grund |
+|-----------|-----------|------------|-------|
+| `PISTON_DIAMETER_MM` | 30.0 | 10.0 | RMS10X400 |
+| `EXHAUST_FLOW_COEFF` | 1.5e-4 | 1.7e-5 | Skaliert mit A (1/9) |
+| `PISTON_VISCOUS_FRICTION` | 1000 (hardcoded) | 300 | 9× weniger Kraft |
+| `BELT_STIFFNESS` | 500 | 60 | Skaliert mit A |
+| `FREEWHEEL_BRAKE_FORCE_N` | 10.0 | 1.5 | Skaliert mit A |
+| `VEHICLE_MECHANICAL_DAMPING` | 500 | 60 | Skaliert mit A |
+| `VEHICLE_ROLLING_RESISTANCE` | 0.08 | 0.05 | Reduziert für kleinere Kraft |
+| `DEAD_VOLUME_M` | 0.005 (hardcoded) | 0.020 | Größerer Totraum für 10mm |
+| `AXLE_FRICTION_TORQUE_NM` | 0.005 | 0.005 | Unverändert |
+
+### Solver-Änderungen
+
+- **LSODA → BDF**: LSODA blieb bei 10mm-Kolben hängen (97% Zeitschritte an einem Punkt). BDF arbeitet zuverlässig.
+- **Solver-Fallback**: Bei BDF status=-1 wird automatisch auf Radau → LSODA → loose BDF zurückgegriffen.
+- **n_co2_relief clamping**: Verhindert negative n_co2_gas bei Druck-Spikes.
+
+### Ergebnisse (300s Simulation)
+
+| Metrik | Wert |
+|--------|------|
+| Hübe | 12 |
+| Zeit pro Hub | ~25 s |
+| Gesamtdistanz | 2.38 m |
+| P_reactor (Ende) | 2.51 bar |
+| P_reactor (Spitze) | 25.08 bar (Citric-Exhaustion) |
+| Zeitschritte | 37.697 |
+| CSV-Größe | ~4 MB |
+
+### Bekannte Probleme
+
+1. **25 bar Druckspitze** bei Citric-Exhaustion (Kopfraum schrumpft durch Flüssigkeitszulauf) → entschärft durch Relief-Valve-Clamping
+2. **25 s/Hub** ist langsam → Friction-Tuning nötig (300 N·s/m begrenzt Geschw. auf 1.2 cm/s)
+
+---
+
 ## Nächste Schritte
 
 1. [x] Simulation testen nach Korrekturen → läuft stabil
-2. [x] Theoretische Distanz korrigiert → 12.4m
+2. [x] Theoretische Distanz korrigiert → 12.4m (für 30mm)
 3. [x] Chemische Eduktmengen auf Konzept-Niveau → 27g Citric, 50g NaHCO₃
-4. [ ] Fahrzeuggeschwindigkeit optimieren für 30m in 5 Minuten
-5. [ ] Tropfrate erhöhen (Ventilquerschnitt oder Tankdruck) für schnellere Reaktion
+4. [x] 10mm-Kolben RMS10X400 integriert → Simulation läuft
+5. [x] Solver-Fallback für BDF-Abstürze → keine hängenbleibenden Läufe mehr
+6. [ ] Fahrzeuggeschwindigkeit optimieren für 30m in 5 Minuten
+7. [ ] Tropfrate erhöhen (Ventilquerschnitt oder Tankdruck) für schnellere Reaktion
