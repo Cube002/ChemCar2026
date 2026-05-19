@@ -202,3 +202,10 @@ LOGIK-FLUSS:
 EDUKT -> CO2 -> DRUCK -> KOLBEN-HUB -> FREILAUF-KOPPLUNG -> VORWARTS-DRUCK
 ------------------------------------------------------------------------------
 ```
+Wie sind die maximalen Maße (Transportmaße)?
+Das ChemCar muss in einem Eimer mit folgenden Maßen transportiert werden:
+
+Oben: 900 mm x 550 mm
+Unten: 570 mm x 280 mm
+Wie lange darf es fahren (Versuche)?
+Jedes Team hat zwei Versuche ("attempts"). Für jede Versuchsrunde haben die Teams drei Minuten Zeit, um ihre Versuche abzuschließen.

@@ -35,11 +35,11 @@ def compute_derived(t, y, direction_at_t=None):
 
     P_tank = np.zeros(len(t))
     for i in range(len(t)):
-        if y[i, 0] > 0:
-            m_solution_kg = (y[i, 0] * CITRIC_ACID_MOLAR_MASS / 1000.0) / CITRIC_MASS_FRACTION
-            P_tank[i] = get_tank_pressure(m_solution_kg)
-        else:
-            P_tank[i] = 1.0
+        #if y[i, 0] > 0:
+        m_solution_kg = (y[i, 0] * CITRIC_ACID_MOLAR_MASS / 1000.0) / CITRIC_MASS_FRACTION
+        P_tank[i] = get_tank_pressure(m_solution_kg)
+        #else:
+        #    P_tank[i] = 1.0
 
     drip = np.zeros(len(t))
     for i in range(len(t)):

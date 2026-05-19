@@ -58,7 +58,7 @@ REGULATOR_FLOW_COEFF = 5e-4       # m³/s / sqrt(bar) — Flow durch Regler (lim
 REGULATOR_INACTIVE_THRESHOLD_BAR = 1.0  # Unter diesem Druck regelt der Minderer nicht
 
 # Feder-Schwelle am Kolben
-SPRING_PRELOAD_BAR = 1.2         # Mindestdruck um Feder zu komprimieren (bar)
+SPRING_PRELOAD_BAR = 1.9         # Mindestdruck um Feder zu komprimieren (bar)
 
 # Überdruckventil (Safety Relief Valve)
 RELIEF_VALVE_SET_BAR = 4.4        # 1.1 * 4 bar max operating pressure
@@ -78,7 +78,7 @@ SPRING_SMOOTH_WIDTH_M = 0.001    # 1 mm C1-Übergangszone (verhindert Jacobian-S
 # Federkonstante berechnet aus Schwellendruck: F_spring_max = k * 0.02 = P * A
 # Damit ~1.9 bar nötig sind um Feder ganz zusammenzudrücken
 SPRING_CONSTANT_N_PER_M = ((SPRING_PRELOAD_BAR - ATMOSPHERIC_PRESSURE) * 1e5 * PISTON_AREA_M2) / SPRING_ACTIVE_DISTANCE_M 
-
+# print("SPRING_CONSTANT_N_PER_M" , SPRING_CONSTANT_N_PER_M)
 # Totvolumen in Schläuchen/Ventilen (additiv, verhindert P_exhaust → ∞ am Hubende)
 DEAD_VOLUME_M = 0.020            # Meter äquivalenter Totraum (20mm für 10mm-Kolben)
 
@@ -95,7 +95,7 @@ EXHAUST_ORIFICE_AREA_MM2 = 2.0  # Äquivalente Drosselöffnungsfläche in mm²
 
 # Kolben-Masse
 PISTON_MASS_KG = 0.5              # Masse des beweglichen Teils
-PISTON_VISCOUS_FRICTION = 300     # N·s/m — viskose Reibung (10mm-Kolben, dämpft Endanschlag)
+PISTON_VISCOUS_FRICTION = 30     # N·s/m — viskose Reibung (10mm-Kolben, dämpft Endanschlag)
 
 # Effektive beschleunigte Masse (Kolben + äquivalentes Fahrzeug über Riemenübersetzung)
 # Da der Kolben über Riemen und Freiläufe das Fahrzeug beschleunigt, muss die Fahrzeugmasse
@@ -128,7 +128,7 @@ WHEEL_CONTACT_AREA_M2 = 0.002     # Kontaktfläche Rad-Boden
 # Freilauf-Bremse (wenn Kolben steht = kein Antrieb)
 # Modelliert Lagerreibung, Getriebeverluste, mechanische Dämpfung
 FREEWHEEL_BRAKE_FORCE_N = 1.5      # Äquivalente Bremskraft am Rad im Freilauf (N) — skaliert mit A
-VEHICLE_MECHANICAL_DAMPING = 60.0   # Mechanische Dämpfung (N·s/m) — skaliert mit A
+VEHICLE_MECHANICAL_DAMPING = 30.0   # Mechanische Dämpfung (N·s/m) — skaliert mit A
 
 # ============================================================================
 # SIMULATION-PARAMETER
